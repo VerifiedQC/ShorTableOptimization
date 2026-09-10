@@ -7,7 +7,7 @@ open Operations
 
 def generatedPoints (mode : ProductMode) (k : Nat) : List Point :=
   if decide (mode = .PhaseTripleProduct ∧ k = 3) then
-    [.int 0, .int 1, .frac 0, .int 2, .int 4, .int (-4), .int (-2)]
+    [.frac 0, .int 1, .int 0, .frac 2, .frac 4, .frac (-4), .frac (-2)]
   else
     canonicalPoints mode k
 
@@ -19,32 +19,32 @@ def generatePointsInOrder
   generatedPoints mode k
 
 def program : Prog 3 :=
-  [.addScaled 1 0 false 0,
-   .addScaled 1 2 false 0,
-   .phaseProduct 0,
-   .phaseProduct 1,
-   .phaseProduct 2,
-   .addScaled 1 0 true 0,
-   .addScaled 1 2 false 0,
-   .shiftL 1 1,
-   .addScaled 0 1 false 0,
-   .addScaled 1 2 false 3,
+  [.addScaled 1 2 false 0,
    .addScaled 1 0 false 0,
-   .phaseProduct 0,
+   .phaseProduct 2,
    .phaseProduct 1,
-   .addScaled 1 2 true 4,
-   .addScaled 0 1 true 0,
-   .addScaled 1 0 true 0,
-   .addScaled 1 0 false 2,
-   .addScaled 0 1 false 0,
-   .addScaled 1 2 true 3,
    .phaseProduct 0,
+   .addScaled 1 2 true 0,
+   .addScaled 1 0 false 0,
+   .shiftL 1 1,
+   .addScaled 2 1 false 0,
+   .addScaled 1 0 false 3,
+   .addScaled 1 2 false 0,
+   .phaseProduct 2,
    .phaseProduct 1,
-   .addScaled 1 0 true 0,
+   .addScaled 1 0 true 4,
+   .addScaled 2 1 true 0,
+   .addScaled 1 2 true 0,
+   .addScaled 1 2 false 2,
+   .addScaled 2 1 false 0,
+   .addScaled 1 0 true 3,
+   .phaseProduct 2,
+   .phaseProduct 1,
+   .addScaled 1 2 true 0,
    .shiftR 1 1,
-   .addScaled 1 2 false 1,
-   .addScaled 0 1 false 2,
-   .addScaled 1 2 false 2]
+   .addScaled 1 0 false 1,
+   .addScaled 2 1 false 2,
+   .addScaled 1 0 false 2]
 
 def generate (mode : ProductMode) (k : Nat) (hk : k >= 2) : Prog k :=
   if htarget : mode = .PhaseTripleProduct ∧ k = 3 then
@@ -88,18 +88,18 @@ def implementation : GeneratorPolicy where
 theorem metrics : arithmeticOperationCount program = 19 ∧
     parallelPhaseProductLayerCount program = 3 ∧ phaseProductCount program = 7 := by decide
 
-/-- Register 2 is never even an arithmetic destination. -/
-def doesNotWriteRegister2 : Operations.valid_ops 3 → Bool
+/-- Register 0 is never even an arithmetic destination. -/
+def doesNotWriteRegister0 : Operations.valid_ops 3 → Bool
   | .phaseProduct _ => true
-  | .shiftL i _ | .shiftR i _ | .negate i => decide (i ≠ 2)
-  | .addScaled dst _ _ _ => decide (dst ≠ 2)
-theorem neverWritesRegister2 : program.all doesNotWriteRegister2 = true := by decide
+  | .shiftL i _ | .shiftR i _ | .negate i => decide (i ≠ 0)
+  | .addScaled dst _ _ _ => decide (dst ≠ 0)
+theorem neverWritesRegister0 : program.all doesNotWriteRegister0 = true := by decide
 
-/-- Every prefix executes safely and keeps register 2 equal to its initial row. -/
-theorem everyPrefixKeepsRegister2 :
+/-- Every prefix executes safely and keeps register 0 equal to its initial row. -/
+theorem everyPrefixKeepsRegister0 :
     ∀ n : Fin (program.length + 1),
       ((run? (program.take n.val) State.start_state).map
-        (fun s => (List.finRange 3).map (fun j => s 2 j))) = some [0,0,1] := by decide
+        (fun s => (List.finRange 3).map (fun j => s 0 j))) = some [1,0,0] := by decide
 
 
 end TableGeneration.Submission.Policy
