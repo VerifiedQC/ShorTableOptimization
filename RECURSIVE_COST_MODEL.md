@@ -234,3 +234,40 @@ CI checks:
 
 The model version and objective must be included in published results so that a
 future ForShor cost-model change does not silently reinterpret old estimates.
+
+## Model versions (investigation branch)
+
+`v2` (`forshor-phase-product-gates-v2`) remains the default and is unchanged:
+`rippleAdder(w) = 9w + 2`, `negate(w) = 10w + 2`, free sign extension, no
+allocation bookkeeping. Every existing plan regenerates byte-identically under
+it; `analyzeWith_v2` in `TableGeneration/RecursiveCost/Catalog.lean` proves the
+parameterized analyzer agrees with the original one at `v2Costs`.
+
+`v3` (`forshor-phase-product-gates-v3`) transcribes the operative model at
+companion commit `d5a165b`, `shorGateCostModel = shorGateResourceModel.toCostModel`
+in `Framework/Gatecount/ResourceModel.lean`:
+
+- `addScaled`: exact Cuccaro modulo adder,
+  `(2w - 6) + (5w - 7) + (2w - 3)` = `9w - 16` for `w >= 3`;
+- `negate`: complement plus a constant-one register plus that adder,
+  `(w + (2w - 6) + 2) + (5w - 7) + (2w - 3)` = `10w - 14` for `w >= 3`;
+- `shiftL` / `shiftR` / `zeroExtend` / `zeroDealloc`: free;
+- `signExtend` / `signDealloc`: `n` CNOTs each.
+
+Truncated `Nat` subtraction is deliberate: the companion's definitions are over
+`Nat`, so the same truncation applies below the published `w >= 3` regime.
+
+Because `allocChunkGate` sign-extends only the top limb and zero-extends the
+other `k - 1` limbs, the exact per-node allocation charge is
+`2 * ((W' - topLimb(x)) + (W' - topLimb(z)))`, not `4kW'`. The `4kW'` term is a
+bound proved in `GateCount/PhaseProduct/Lemmas.lean` (`lgc_allocs_le`,
+`lgc_deallocs_le`) for the asymptotic recurrence; it is the same category of
+object as `rippleAdderGateBound` and is not a cost the operative model charges.
+`v3-loose4kw` substitutes that bound and exists only as a sensitivity
+comparison; it must not be described as the companion's model.
+
+Selecting a version:
+
+- Lean: `bestPlanWith v3Costs candidates width`, or the oracle's
+  `--model=v2|v3|v3-loose4kw`.
+- JavaScript: `RecursiveCost.selectModel("v3")`.

@@ -68,17 +68,35 @@ def parseWidth (raw : String) : IO Nat :=
   | some width => pure width
   | none => throw (IO.userError s!"invalid test width: {raw}")
 
-def printPlans (candidates : List Candidate) (rawWidths : List String) : IO Unit := do
+/-- Resolve a `--model=<name>` selector to its cost constants. -/
+def parseCosts (raw : String) : IO CostConstants :=
+  if raw = "v2" then pure v2Costs
+  else if raw = "v3" then pure v3Costs
+  else if raw = "v3-loose4kw" then pure v3LooseCosts
+  else throw (IO.userError s!"unknown cost model: {raw}")
+
+/-- Split a leading `--model=<name>` argument from the remaining arguments. -/
+def takeModel (args : List String) : IO (CostConstants × List String) :=
+  match args with
+  | arg :: rest =>
+      if arg.startsWith "--model=" then do
+        let costs ← parseCosts (arg.drop "--model=".length).toString
+        pure (costs, rest)
+      else pure (v2Costs, args)
+  | [] => pure (v2Costs, args)
+
+def printPlans (costs : CostConstants)
+    (candidates : List Candidate) (rawWidths : List String) : IO Unit := do
   let widths ← rawWidths.mapM parseWidth
-  let plans := buildSparsePlans candidates widths
+  let plans := buildSparsePlansWith costs candidates widths
   for width in widths do
     IO.println (planLine ((findPlan? plans width).getD (PlanResult.base width)))
 
-def checkDenseSparseAgreement
+def checkDenseSparseAgreement (costs : CostConstants)
     (label : String) (candidates : List Candidate) (widths : List Nat) : IO Unit := do
   let maxWidth := widths.foldl max 0
-  let dense := buildPlanTable candidates maxWidth
-  let sparse := buildSparsePlans candidates widths
+  let dense := buildPlanTableWith costs candidates maxWidth
+  let sparse := buildSparsePlansWith costs candidates widths
   for width in widths do
     if dense[width]? = findPlan? sparse width then
       pure ()
@@ -90,13 +108,14 @@ end TableGeneration.RecursiveCost.TestOracle
 open TableGeneration.RecursiveCost
 open TableGeneration.RecursiveCost.TestOracle
 
-def main (args : List String) : IO Unit := do
+def main (rawArgs : List String) : IO Unit := do
+  let (costs, args) ← takeModel rawArgs
   match args with
   | "--catalog" :: _ =>
       for candidate in bestKnownCandidates do
         IO.println (candidateLine candidate)
   | "--best-known" :: rawWidths =>
-      printPlans bestKnownCandidates rawWidths
+      printPlans costs bestKnownCandidates rawWidths
   | "--reference" :: rawWidths =>
       for raw in rawWidths do
         let width ← parseWidth raw
@@ -104,10 +123,10 @@ def main (args : List String) : IO Unit := do
         IO.println (referenceLine transitionCandidate width)
   | "--dense-sparse" :: rawWidths =>
       let widths ← rawWidths.mapM parseWidth
-      checkDenseSparseAgreement "binary" [binaryCandidate] widths
-      checkDenseSparseAgreement "transitions" [transitionCandidate] widths
-      checkDenseSparseAgreement "combined" [binaryCandidate, transitionCandidate] widths
-      checkDenseSparseAgreement "best-known" bestKnownCandidates widths
+      checkDenseSparseAgreement costs "binary" [binaryCandidate] widths
+      checkDenseSparseAgreement costs "transitions" [transitionCandidate] widths
+      checkDenseSparseAgreement costs "combined" [binaryCandidate, transitionCandidate] widths
+      checkDenseSparseAgreement costs "best-known" bestKnownCandidates widths
       IO.println "dense/sparse agreement passed"
   | rawWidths =>
-      printPlans [binaryCandidate] rawWidths
+      printPlans costs [binaryCandidate] rawWidths

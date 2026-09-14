@@ -20,6 +20,15 @@ def key (candidate : Candidate) : String :=
 def analyze (candidate : Candidate) (n : Nat) : ProgramAnalysis :=
   analyzeBalancedProgram n candidate.program
 
+/-- Analyze a candidate at a balanced `n`-bit node under a model version. -/
+def analyzeWith (costs : CostConstants) (candidate : Candidate) (n : Nat) :
+    ProgramAnalysis :=
+  analyzeBalancedProgramWith costs n candidate.program
+
+@[simp] theorem analyzeWith_v2 (candidate : Candidate) (n : Nat) :
+    analyzeWith v2Costs candidate n = candidate.analyze n := by
+  simp [analyzeWith, analyze]
+
 end Candidate
 
 /-- Current promoted PhaseProduct program for one `k`. -/

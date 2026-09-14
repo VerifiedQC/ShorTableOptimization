@@ -73,10 +73,36 @@ function testWidthModel() {
   );
 }
 
+const MODELS = ["v2", "v3", "v3-loose4kw"];
+
+function modelApi(version) {
+  return RecursiveCost.selectModel(version);
+}
+
 function testGateModel() {
   assert.equal(RecursiveCost.rippleAdderGateBound(7), 65n);
   assert.equal(RecursiveCost.negateGateBound(7), 72n);
   assert.equal(RecursiveCost.directSignedPhaseProductGateCount(7, 9), 315n);
+
+  // v3 primitives, against ResourceModel.lean at companion commit d5a165b.
+  // Cuccaro: x = 2w - 6, cnot = 5w - 7, toffoli = 2w - 3; totalGates = 9w - 16.
+  assert.equal(RecursiveCost.cuccaroModAddGateCount(7), 47n);
+  assert.equal(RecursiveCost.cuccaroModAddGateCount(7), 9n * 7n - 16n);
+  assert.equal(RecursiveCost.cuccaroModAddGateCount(3), 9n * 3n - 16n);
+  // negate = (w + (2w - 6) + 2) + (5w - 7) + (2w - 3) = 10w - 14 for w >= 3.
+  assert.equal(RecursiveCost.cuccaroNegateGateCount(7), 56n);
+  assert.equal(RecursiveCost.cuccaroNegateGateCount(7), 10n * 7n - 14n);
+  // Truncated Nat subtraction below the published w >= 3 regime.
+  assert.equal(RecursiveCost.cuccaroModAddGateCount(2), 4n);
+  assert.equal(RecursiveCost.cuccaroModAddGateCount(1), 0n);
+  // Only the top limb is sign-extended; each is extended once and deallocated
+  // once. k = 5, width 2048: limb = 409, top limb = 2048 - 4 * 409 = 412.
+  assert.equal(RecursiveCost.topLimbWidth(2048, 409, 5), 412);
+  assert.equal(
+    RecursiveCost.signExtensionAllocationGateCount(2048, 2048, 5, 440),
+    2n * ((440n - 412n) + (440n - 412n)),
+  );
+  assert.equal(RecursiveCost.looseAllocationGateBound(2048, 2048, 5, 440), 8800n);
 
   const analysis = RecursiveCost.analyzeProgram(8, 8, {
     policyId: "arithmetic-test",
@@ -277,13 +303,13 @@ function deterministicWidths() {
   return [...new Set(widths)];
 }
 
-function runLeanOracle(arguments_) {
+function runLeanOracle(arguments_, model = "v2") {
   const repository = path.resolve(__dirname, "..");
   ensureLeanModulesBuilt(repository);
   const oracle = path.join(repository, "scripts/tests/RecursiveCostOracle.lean");
   const result = childProcess.spawnSync(
     "lake",
-    ["env", "lean", "--run", oracle, ...arguments_],
+    ["env", "lean", "--run", oracle, `--model=${model}`, ...arguments_],
     { cwd: repository, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 },
   );
   if (result.status !== 0) {
@@ -292,11 +318,11 @@ function runLeanOracle(arguments_) {
   return result.stdout.trim().split("\n").filter(Boolean);
 }
 
-function leanPlans(widths, mode = null) {
+function leanPlans(widths, mode = null, model = "v2") {
   const arguments_ = mode === null
     ? widths.map(String)
     : [mode, ...widths.map(String)];
-  return runLeanOracle(arguments_).map(line => {
+  return runLeanOracle(arguments_, model).map(line => {
     const [width, gates, height, calls, arithmetic, choice] = line.split("\t");
     return { width, gates, height, calls, arithmetic, choice };
   });
@@ -327,7 +353,8 @@ function testBalancedReferenceAgreement() {
   }
 }
 
-function testDenseSparseAgreement() {
+function testDenseSparseAgreement(model = "v2") {
+  const api = modelApi(model);
   const widths = [
     ...Array.from({ length: 33 }, (_, index) => index),
     63, 64, 65, 127, 128,
@@ -337,23 +364,24 @@ function testDenseSparseAgreement() {
     [transitionCandidate],
     [binaryCandidate, transitionCandidate],
   ]) {
-    const dense = RecursiveCost.buildPlanTable(candidates, Math.max(...widths));
-    const memoized = RecursiveCost.bestPlans(candidates, widths);
+    const dense = api.buildPlanTable(candidates, Math.max(...widths));
+    const memoized = api.bestPlans(candidates, widths);
     memoized.forEach((plan, index) => assert.deepEqual(plan, dense[widths[index]]));
   }
   assert.deepEqual(
-    runLeanOracle(["--dense-sparse", ...widths.map(String)]),
+    runLeanOracle(["--dense-sparse", ...widths.map(String)], model),
     ["dense/sparse agreement passed"],
   );
 }
 
-function testLeanDifferential() {
+function testLeanDifferential(model = "v2") {
+  const api = modelApi(model);
   const widths = deterministicWidths();
-  const lean = leanPlans(widths);
+  const lean = leanPlans(widths, null, model);
   assert.equal(lean.length, widths.length);
   lean.forEach((expected, index) => {
     const width = widths[index];
-    const actual = RecursiveCost.bestPlan([binaryCandidate], width);
+    const actual = api.bestPlan([binaryCandidate], width);
     const choice = actual.choice === null
       ? "base"
       : `${actual.choice.k}:${actual.choice.childWidth}:${actual.choice.policyId}`;
@@ -368,7 +396,8 @@ function testLeanDifferential() {
   });
 }
 
-function testBestKnownDifferential() {
+function testBestKnownDifferential(model = "v2") {
+  const api = modelApi(model);
   const candidates = bestKnownCatalog();
   assert.deepEqual(candidates.map(candidate => candidate.k), [
     2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
@@ -377,9 +406,9 @@ function testBestKnownDifferential() {
     ...Array.from({ length: 65 }, (_, index) => index),
     127, 128, 129, 2048, 4096,
   ];
-  const lean = leanPlans(widths, "--best-known");
-  const plans = RecursiveCost.bestPlans(candidates, widths);
-  const dense = RecursiveCost.buildPlanTable(candidates, 129);
+  const lean = leanPlans(widths, "--best-known", model);
+  const plans = api.bestPlans(candidates, widths);
+  const dense = api.buildPlanTable(candidates, 129);
   lean.forEach((expected, index) => {
     const width = widths[index];
     const actual = plans[index];
@@ -406,10 +435,12 @@ async function main() {
   await testArchivedCatalog();
   await testPublishedArchive();
   testBalancedReferenceAgreement();
-  testDenseSparseAgreement();
-  testLeanDifferential();
-  testBestKnownDifferential();
-  console.log("recursive cost tests passed");
+  for (const model of MODELS) {
+    testDenseSparseAgreement(model);
+    testLeanDifferential(model);
+    testBestKnownDifferential(model);
+  }
+  console.log(`recursive cost tests passed (${MODELS.join(", ")})`);
 }
 
 main().catch(error => {
