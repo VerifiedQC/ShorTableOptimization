@@ -184,6 +184,127 @@ def phaseProgramOverhead {k : Nat}
     (workingWidth : Nat) (ops : Prog k) : Nat :=
   ops.foldr (fun op total => phaseArithmeticOpCost workingWidth op + total) 0
 
+/-!
+## Cost-model versions
+
+`v2` is the model transcribed from the companion development at `cb0fa12`:
+`rippleAdderGateBound w = 9w + 2` (a bound), free sign extension, no allocation
+bookkeeping.
+
+`v3` transcribes the operative model at companion commit `d5a165b`, namely
+`shorGateCostModel = shorGateResourceModel.toCostModel` in
+`Framework/Gatecount/ResourceModel.lean`:
+
+* `addScaled` is the exact Cuccaro modulo adder,
+  `(2w - 6) + (5w - 7) + (2w - 3)` = `9w - 16` for `w >= 3`;
+* `negate` is bitwise complement plus a constant-one register plus that adder,
+  `(w + (2w - 6) + 2) + (5w - 7) + (2w - 3)` = `10w - 14` for `w >= 3`;
+* `shiftL` / `shiftR` / `zeroExtend` / `zeroDealloc` are free;
+* `signExtend` / `signDealloc` cost `n` CNOTs each.
+
+Truncated `Nat` subtraction is deliberate: the companion's definitions are over
+`Nat`, so the same truncation applies there for `w < 3`.
+-/
+
+/-- Cost constants that distinguish one model version from another. -/
+structure CostConstants where
+  version : String
+  /-- Cost of one ripple-carry addition at the common working width. -/
+  rippleAdder : Nat → Nat
+  /-- Cost of one two's-complement negation at the common working width. -/
+  negate : Nat → Nat
+  /--
+  Allocation and deallocation bookkeeping charged once per recursive node,
+  as `allocation xWidth zWidth k childWidth`.
+  -/
+  allocation : Nat → Nat → Nat → Nat → Nat
+
+/-- Exact Cuccaro modulo-`2^w` ripple-carry adder total, `9w - 16` for `w >= 3`. -/
+def cuccaroModAddGateCount (width : Nat) : Nat :=
+  (2 * width - 6) + (5 * width - 7) + (2 * width - 3)
+
+/-- Exact Cuccaro-based negation total, `10w - 14` for `w >= 3`. -/
+def cuccaroNegateGateCount (width : Nat) : Nat :=
+  (width + (2 * width - 6) + 2) + (5 * width - 7) + (2 * width - 3)
+
+/-- Logical width of the most-significant limb of a top-heavy split. -/
+def topLimbWidth (width limbWidth k : Nat) : Nat :=
+  width - (k - 1) * limbWidth
+
+/--
+Exact sign-extension bookkeeping for one recursive node.
+
+The companion's `allocChunkGate` sign-extends only the top limb and
+zero-extends the other `k - 1` limbs, and `zeroExtend` / `zeroDealloc` are free.
+Each of the two top limbs is therefore extended and deallocated once, at
+`childWidth - topLimbWidth` CNOTs apiece.
+-/
+def signExtensionAllocationGateCount
+    (xWidth zWidth k childWidth : Nat) : Nat :=
+  let limbWidth := phaseLimbWidth xWidth zWidth k
+  2 * ((childWidth - topLimbWidth xWidth limbWidth k) +
+       (childWidth - topLimbWidth zWidth limbWidth k))
+
+/--
+The `4kW` allocation bound from the companion's one-level recurrence lemma.
+
+This is a bound used by the asymptotic proof layer, not a cost the operative
+model charges; it is retained only as a sensitivity comparison and must not be
+described as the companion's model.
+-/
+def looseAllocationGateBound (_xWidth _zWidth k childWidth : Nat) : Nat :=
+  4 * k * childWidth
+
+/-- Model transcribed from the companion development at `cb0fa12`. -/
+def v2Costs : CostConstants where
+  version := "forshor-phase-product-gates-v2"
+  rippleAdder := rippleAdderGateBound
+  negate := negateGateBound
+  allocation := fun _ _ _ _ => 0
+
+/-- Model transcribed from `shorGateCostModel` at companion commit `d5a165b`. -/
+def v3Costs : CostConstants where
+  version := "forshor-phase-product-gates-v3"
+  rippleAdder := cuccaroModAddGateCount
+  negate := cuccaroNegateGateCount
+  allocation := signExtensionAllocationGateCount
+
+/-- `v3` with the loose `4kW` allocation bound substituted, for comparison only. -/
+def v3LooseCosts : CostConstants where
+  version := "forshor-phase-product-gates-v3-loose4kw"
+  rippleAdder := cuccaroModAddGateCount
+  negate := cuccaroNegateGateCount
+  allocation := looseAllocationGateBound
+
+/-- Nonrecursive arithmetic cost of one table operation under a model version. -/
+def phaseArithmeticOpCostWith {k : Nat}
+    (costs : CostConstants) (workingWidth : Nat) : valid_ops k → Nat
+  | .shiftL _ _ => 0
+  | .shiftR _ _ => 0
+  | .negate _ => 2 * costs.negate workingWidth
+  | .addScaled _ _ _ _ => 2 * costs.rippleAdder workingWidth
+  | .phaseProduct _ => 0
+
+/-- Total nonrecursive gate cost of a program under a model version. -/
+def phaseProgramOverheadWith {k : Nat}
+    (costs : CostConstants) (workingWidth : Nat) (ops : Prog k) : Nat :=
+  ops.foldr (fun op total => phaseArithmeticOpCostWith costs workingWidth op + total) 0
+
+@[simp] theorem phaseArithmeticOpCostWith_v2 {k : Nat}
+    (workingWidth : Nat) (op : valid_ops k) :
+    phaseArithmeticOpCostWith v2Costs workingWidth op =
+      phaseArithmeticOpCost workingWidth op := by
+  cases op <;> rfl
+
+@[simp] theorem phaseProgramOverheadWith_v2 {k : Nat}
+    (workingWidth : Nat) (ops : Prog k) :
+    phaseProgramOverheadWith v2Costs workingWidth ops =
+      phaseProgramOverhead workingWidth ops := by
+  induction ops with
+  | nil => rfl
+  | cons op rest ih =>
+      simp [phaseProgramOverheadWith, phaseProgramOverhead]
+
 /-- Width and local-cost information for one recursive policy candidate. -/
 structure ProgramAnalysis where
   childWidth : Nat
@@ -209,6 +330,41 @@ def analyzeBalancedProgram {k : Nat}
     arithmeticGateCount := phaseProgramOverhead childWidth ops
     arithmeticOperationCount := TableGeneration.arithmeticOperationCount ops
     recursiveCallCount := TableGeneration.phaseProductCount ops }
+
+/-- Analyze a verified program under a chosen model version. -/
+def analyzeProgramWith {k : Nat}
+    (costs : CostConstants) (xWidth zWidth : Nat) (ops : Prog k) : ProgramAnalysis :=
+  let childWidth := nextSignedWidth xWidth zWidth ops
+  { childWidth
+    arithmeticGateCount :=
+      phaseProgramOverheadWith costs childWidth ops +
+        costs.allocation xWidth zWidth k childWidth
+    arithmeticOperationCount := TableGeneration.arithmeticOperationCount ops
+    recursiveCallCount := TableGeneration.phaseProductCount ops }
+
+/-- Balanced analysis under a chosen model version, using the compact scan. -/
+def analyzeBalancedProgramWith {k : Nat}
+    (costs : CostConstants) (width : Nat) (ops : Prog k) : ProgramAnalysis :=
+  let childWidth := nextBalancedSignedWidth width ops
+  { childWidth
+    arithmeticGateCount :=
+      phaseProgramOverheadWith costs childWidth ops +
+        costs.allocation width width k childWidth
+    arithmeticOperationCount := TableGeneration.arithmeticOperationCount ops
+    recursiveCallCount := TableGeneration.phaseProductCount ops }
+
+@[simp] theorem v2Costs_allocation (xWidth zWidth k childWidth : Nat) :
+    v2Costs.allocation xWidth zWidth k childWidth = 0 := rfl
+
+@[simp] theorem analyzeProgramWith_v2 {k : Nat}
+    (xWidth zWidth : Nat) (ops : Prog k) :
+    analyzeProgramWith v2Costs xWidth zWidth ops = analyzeProgram xWidth zWidth ops := by
+  simp [analyzeProgramWith, analyzeProgram]
+
+@[simp] theorem analyzeBalancedProgramWith_v2 {k : Nat}
+    (width : Nat) (ops : Prog k) :
+    analyzeBalancedProgramWith v2Costs width ops = analyzeBalancedProgram width ops := by
+  simp [analyzeBalancedProgramWith, analyzeBalancedProgram]
 
 @[simp] theorem analyzeProgram_recursiveCallCount {k : Nat}
     (xWidth zWidth : Nat) (ops : Prog k) :
