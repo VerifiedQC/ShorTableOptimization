@@ -17,10 +17,9 @@ definitions.
 
 ## Not taken
 
-* The scalar `section ConcreteCostModel` layer (`rippleAdderGateBound = 9w + 2`,
-  `negateGateBound`). Those are the companion's conservative *bounds*, used in
-  its asymptotic proofs and superseded by the resource layer below. This
-  repository keeps its own copies as the `v2` model, where they belong.
+* `phaseProductCostModel`, the companion's former operative model. It was
+  **deleted** upstream at `89c45ee`: it charged the loose bounds for arithmetic
+  and treated sign extension as free. Nothing here reproduces it.
 * `directCSignedPhaseProductGateCount = 9xz`. Dead in the companion -- its only
   occurrence is its own definition -- and the recursion here only ever reaches
   the signed leaf.
@@ -29,6 +28,26 @@ definitions.
 
 
 namespace TableGeneration.RecursiveCost.ForShor
+
+/-! ## The companion's conservative bounds
+
+These are not the cost model. The companion keeps them as the loose linear
+bounds its asymptotic proofs are stated against, and bridges them to the exact
+Cuccaro resources with `cuccaroModAddResources_totalGates_le_rippleAdderGateBound`.
+They are integrated because the companion still defines them, and because its
+recurrence-level `phaseArithmeticOpCost` charges them.
+
+The model that packaged these into a `LowGateCostModel` -- `phaseProductCostModel`,
+which also treated sign extension as free -- was **deleted** upstream and is not
+reproduced here.
+-/
+
+/-- Conservative linear bound for one ripple-adder on `w` qubits. -/
+def rippleAdderGateBound (w : Nat) : Nat := 9 * w + 2
+
+/-- Negation is bounded by sign-width handling plus one ripple-adder. -/
+def negateGateBound (r : ExtReg) : Nat :=
+  ExtReg.width r + rippleAdderGateBound (ExtReg.width r)
 
 /-- Direct signed PhaseProduct base-case cost, quadratic in the operand widths.
 
