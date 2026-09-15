@@ -64,6 +64,30 @@ def referenceLine (candidate : Candidate) (width : Nat) : String :=
     , toString (nextBalancedSignedWidth width candidate.program)
     , toString (nextSignedWidth width width candidate.program) ]
 
+/-- The primitive gate costs at one width, for the JavaScript mirror to match.
+
+The planner differential compares whole plans, which is indirect: a compensating
+pair of errors in two primitives could cancel. This emits the primitives
+themselves so the mirror is checked against the Lean definitions directly,
+including below `w = 3` where truncated `Nat` subtraction makes the published
+closed forms diverge from the structural counts. -/
+def costLine (width : Nat) : String :=
+  String.intercalate "\t"
+    [ "cost"
+    , toString width
+    , toString (cuccaroModAddGateCount width)
+    , toString (cuccaroNegateGateCount width)
+    , toString (directSignedPhaseProductGateCount width width) ]
+
+/-- The per-node allocation charge at one `(width, k, childWidth)`. -/
+def allocLine (width k childWidth : Nat) : String :=
+  String.intercalate "\t"
+    [ "alloc"
+    , toString width, toString k, toString childWidth
+    , toString (phaseLimbWidth width width k)
+    , toString (topLimbWidth width (phaseLimbWidth width width k) k)
+    , toString (signExtensionAllocationGateCount width width k childWidth) ]
+
 def parseWidth (raw : String) : IO Nat :=
   match raw.toNat? with
   | some width => pure width
@@ -171,6 +195,13 @@ def main (rawArgs : List String) : IO Unit := do
         let width ← parseWidth raw
         IO.println (referenceLine binaryCandidate width)
         IO.println (referenceLine transitionCandidate width)
+  | "--costs" :: rawWidths =>
+      let widths ← rawWidths.mapM parseWidth
+      for width in widths do
+        IO.println (costLine width)
+        for k in [2, 3, 5, 8, 16] do
+          for childWidth in [width / 2, width / 2 + 1, width, width + 1] do
+            IO.println (allocLine width k childWidth)
   | "--allocation" :: rawWidths =>
       let widths ← rawWidths.mapM parseWidth
       checkAllocationAgreement [2, 3, 4, 5, 6, 8, 10, 16] widths
