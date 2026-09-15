@@ -16,7 +16,14 @@ namespace Candidate
 def key (candidate : Candidate) : String :=
   candidate.policyId ++ ":k=" ++ toString candidate.k
 
-/-- Analyze a candidate at a balanced `n`-bit PhaseProduct node. -/
+/--
+Analyze a candidate at a balanced `n`-bit PhaseProduct node.
+
+This is the **v2** model, retained so the `_v2` agreement lemmas have
+something to name. It is not the operative model: the planner uses the
+`...With` form at `v3Costs`. New callers must pass a `CostConstants`
+explicitly rather than calling this.
+-/
 def analyze (candidate : Candidate) (n : Nat) : ProgramAnalysis :=
   analyzeBalancedProgram n candidate.program
 
