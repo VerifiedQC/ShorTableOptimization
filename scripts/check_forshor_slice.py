@@ -83,6 +83,34 @@ MANIFEST: dict[str, tuple[str, list[str]]] = {
             "phaseProgramWidthGrowth",
         ],
     ),
+    "Allocation.lean": (
+        f"{IMPL}/PhaseProduct/Compiler/Compile.lean",
+        [
+            "allocChunkGate",
+            "deallocChunkGate",
+            "compileSignedAllocationsAux",
+            "compileSignedAllocations",
+            "compileSignedDeallocationsAux",
+            "compileSignedDeallocations",
+        ],
+    ),
+    "Allocation.lean:gates": (
+        f"{FRAMEWORK}/AbstractMachine/Gates.lean",
+        ["Gate"],
+    ),
+    "Allocation.lean:layout": (
+        f"{IMPL}/PhaseProduct/Compiler/Layout.lean",
+        ["LayoutState", "growExtRegTo", "targetSignedLayoutState"],
+    ),
+    "Allocation.lean:cost": (
+        f"{IMPL}/GateCount/PhaseProduct/Lemmas.lean",
+        ["BookkeepingGate", "bookkeepingGateCost"],
+    ),
+    "Registers.lean:algebra": (
+        f"{FRAMEWORK}/Quantum/Registers.lean",
+        ["take", "drop", "append", "CanGrow", "newBits", "remainingReserve",
+         "grow", "ownedQubits", "OwnedDisjoint"],
+    ),
     "ResourceModel.lean": (
         f"{FRAMEWORK}/Gatecount/ResourceModel.lean",
         [
@@ -108,16 +136,27 @@ MANIFEST: dict[str, tuple[str, list[str]]] = {
 
 # Declarations that intentionally differ, and why.
 DEVIATIONS: dict[str, str] = {
-    "Disjoint": (
-        "List.Disjoint is in Batteries, not Lean core; its statement is "
-        "inlined as ListDisjoint so the slice needs no dependency"
-    ),
     "Angle": "companion writes the Mathlib notation Q; Rat is the same type",
+    "compileSignedAllocationsAux": (
+        "the companion's generic order lemmas lt_of_lt_of_le / le_rfl are "
+        "replaced by their Nat counterparts; the terms are defeq"
+    ),
+    "compileSignedDeallocationsAux": (
+        "the companion's generic order lemmas lt_of_lt_of_le / le_rfl are "
+        "replaced by their Nat counterparts; the terms are defeq"
+    ),
+    "compileSignedAllocations": "le_rfl replaced by Nat.le_refl; defeq",
+    "compileSignedDeallocations": "le_rfl replaced by Nat.le_refl; defeq",
+    "grow": "le_refl replaced by Nat.le_refl; defeq",
 }
 
 # Ours only: not from the companion, so nothing to compare against.
 OURS_ONLY = {
-    "ListDisjoint",
+    "slotExtReg",
+    "slotExtReg_width",
+    "slotExtReg_capacity",
+    "canonicalLayoutState",
+    "canonicalAllocationCost",
     "cuccaroModAddResources_totalGates_le_rippleAdderGateBound",
     "negateResourcesAtWidth_totalGates_le_negateGateBound",
     "canonicalReg",
@@ -159,6 +198,7 @@ def extract(text: str, name: str) -> str | None:
 
 def normalize(text: str) -> str:
     text = text.replace("ℕ", "Nat").replace("ℚ", "Rat").replace("ℤ", "Int")
+    text = text.replace("<=", "≤").replace(">=", "≥")
     text = re.sub(r"--.*", "", text)
     text = re.sub(r"/-.*?-/", "", text, flags=re.S)
     return re.sub(r"\s+", " ", text).strip()
@@ -200,7 +240,7 @@ def main() -> int:
 
     commit = None if args.working_tree else args.commit
     repo = Path(__file__).resolve().parent.parent
-    ok, drift, missing = 0, [], []
+    ok, deviated, drift, missing = 0, 0, [], []
 
     for our_name, (relpath, decls) in MANIFEST.items():
         our_path = repo / SLICE_DIR / our_name.split(":")[0]
@@ -220,11 +260,14 @@ def main() -> int:
                 missing.append(f"{decl}: not found in {our_path.name}")
             elif normalize(ours) == normalize(theirs):
                 ok += 1
+            elif decl in DEVIATIONS:
+                # a declared, deliberate difference -- reported, not drift
+                deviated += 1
             else:
                 drift.append((decl, relpath, normalize(theirs), normalize(ours)))
 
     print(f"companion: {root} @ {commit or 'working tree'}")
-    print(f"agreement: {ok} declarations match")
+    print(f"agreement: {ok} declarations match, {deviated} differ as declared")
     for decl, why in sorted(DEVIATIONS.items()):
         print(f"deviation: {decl} -- {why}")
     if missing:

@@ -1,4 +1,5 @@
 import TableGeneration.RecursiveCost.Correctness
+import TableGeneration.RecursiveCost.ForShor.AllocationAgreement
 
 namespace TableGeneration.RecursiveCost.TestOracle
 
@@ -131,6 +132,27 @@ def checkWidthScanAgreement (widths : List Nat) : IO Unit := do
           s!"width scan mismatch at width {width}, k={candidate.k}: \
              array={fast} companion={spec}")
 
+/--
+Check the planner's closed-form allocation charge against the companion's own
+allocation compiler.
+
+`signExtensionAllocationGateCount` is this project's derivation, read off
+`allocChunkGate`: only the top limb of each operand carries a sign, so the other
+`k - 1` limbs zero-extend for free. The companion proves the lowered circuit's
+cost equals `bookkeepingGateCost` of the emitted gate exactly, so running its
+compiler on a canonical layout gives the real figure to compare against.
+-/
+def checkAllocationAgreement (ks widths : List Nat) : IO Unit := do
+  for k in ks do
+    for w in widths do
+      for childWidth in [w / 2, w / 2 + 1, w - 1, w, w + 1] do
+        let companion := TableGeneration.RecursiveCost.ForShor.canonicalAllocationCost w k childWidth
+        let closed := signExtensionAllocationGateCount w w k childWidth
+        if companion != closed then
+          throw (IO.userError
+            s!"allocation mismatch k={k} w={w} childWidth={childWidth}: \
+               companion={companion} closed form={closed}")
+
 end TableGeneration.RecursiveCost.TestOracle
 
 open TableGeneration.RecursiveCost
@@ -149,6 +171,10 @@ def main (rawArgs : List String) : IO Unit := do
         let width ← parseWidth raw
         IO.println (referenceLine binaryCandidate width)
         IO.println (referenceLine transitionCandidate width)
+  | "--allocation" :: rawWidths =>
+      let widths ← rawWidths.mapM parseWidth
+      checkAllocationAgreement [2, 3, 4, 5, 6, 8, 10, 16] widths
+      IO.println "allocation agreement passed"
   | "--width-scan" :: rawWidths =>
       let widths ← rawWidths.mapM parseWidth
       checkWidthScanAgreement widths

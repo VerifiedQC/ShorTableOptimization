@@ -378,6 +378,20 @@ function testWidthScanAgreement(model = "v3") {
   );
 }
 
+// The planner charges a closed form for a node's sign-extension bookkeeping
+// rather than running the companion's allocation compiler. The oracle checks the
+// derivation against that compiler's own output.
+function testAllocationAgreement(model = "v3") {
+  const output = runLeanOracle(
+    ["--allocation", "8", "16", "24", "32", "48", "64", "96", "128", "2048"],
+    model,
+  );
+  assert(
+    output.includes("allocation agreement passed"),
+    `allocation agreement failed under ${model}: ${output}`,
+  );
+}
+
 function testDenseSparseAgreement(model = "v3") {
   const api = modelApi(model);
   const widths = [
@@ -462,6 +476,7 @@ async function main() {
   testBalancedReferenceAgreement();
   for (const model of MODELS) {
     testWidthScanAgreement(model);
+    testAllocationAgreement(model);
     testDenseSparseAgreement(model);
     testLeanDifferential(model);
     testBestKnownDifferential(model);
