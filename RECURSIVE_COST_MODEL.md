@@ -57,8 +57,33 @@ The table-operation languages are compatible. Both repositories use:
 - `addScaled`; and
 - `phaseProduct`.
 
-The standalone implementation reproduces a small, versioned subset of
-ForShor rather than importing ForShor as a dependency.
+The gate costs are not reproduced here. The minimal set of ForShor
+definitions the cost model needs -- `Reg`, `ExtReg`, `LowGate`,
+`LowGateCostModel`, `GateResources`, the Cuccaro resource records, and
+`shorGateCostModel` itself -- is integrated verbatim under
+`TableGeneration/RecursiveCost/ForShor/`, pinned to ForShor commit `d5a165b`
+and carrying per-file provenance headers. The planner's `v3` constants are
+computed from those records, so the familiar `9w - 16` and `10w - 14` are
+theorems (`cuccaroModAddGateCount_eq`, `cuccaroNegateGateCount_eq`) rather
+than numbers copied from the companion, and
+`cuccaroNegateGateCount_eq_model` ties the planner's constant to what
+`shorGateCostModel.negate` charges, by `rfl` and with no axioms.
+
+ForShor is deliberately *not* a Lake dependency. Its cost-model files reach
+`Mathlib.Tactic`, and this repository stays dependency-free so that the
+submission axiom audit remains `propext`-only and a submitter's first build
+stays seconds rather than gigabytes. Two things could not be integrated
+mathlib-free and remain this repository's own formulations, marked as such in
+`Model.lean`: the width scan's `commonNeededWidth` (ForShor uses
+`Finset.univ.sup`) and `updateWidth` (ForShor uses `Function.update`).
+
+What is integrated is the *circuit-level* model. ForShor's own
+recurrence-level costing, `phaseArithmeticOpCost` in
+`Implementation/GateCount/Definitions.lean`, still charges the conservative
+`rippleAdderGateBound = 9w + 2`, which is this repository's `v2`. The `v3`
+model here is ForShor's recurrence shape with ForShor's circuit constants --
+a combination ForShor does not itself define, and it should not be described
+as a number ForShor computes.
 
 ### Initial widths
 
