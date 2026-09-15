@@ -173,6 +173,10 @@
     return left > right ? left - right : 0n;
   }
 
+  // The companion's conservative bounds. No model charges them -- the model
+  // that did, phaseProductCostModel, was deleted upstream -- but the companion
+  // still defines them and its recurrence-level cost still uses them, so they
+  // stay available for comparison.
   function rippleAdderGateBound(width) {
     requireNatural(width, "width");
     return 9n * BigInt(width) + 2n;
@@ -210,50 +214,51 @@
     );
   }
 
-  // The 4kW allocation bound from the companion's one-level recurrence lemma.
-  // A bound used by the asymptotic proof layer, not a cost the operative model
-  // charges. Retained only as a sensitivity comparison.
-  function looseAllocationGateBound(xWidth, zWidth, k, childWidth) {
-    return 4n * BigInt(k) * BigInt(childWidth);
-  }
-
   function directSignedPhaseProductGateCount(xWidth, zWidth) {
     requireNatural(xWidth, "xWidth");
     requireNatural(zWidth, "zWidth");
     return 5n * BigInt(xWidth) * BigInt(zWidth);
   }
 
+  // One model: the companion's operative shorGateCostModel at commit d5a165b.
+  //
+  // Two models used to live here. "v2" mirrored the companion's
+  // phaseProductCostModel -- bound arithmetic, free sign extension -- which the
+  // companion DELETED at 89c45ee. "v3-loose4kw" substituted a 4kW allocation
+  // term that the companion never defined at all; it appears only as an inline
+  // bound inside its asymptotic proofs. Neither describes what the companion
+  // charges, so neither is offered.
   const COST_MODELS = {
-    "forshor-phase-product-gates-v2": {
-      modelVersion: "forshor-phase-product-gates-v2",
-      rippleAdder: rippleAdderGateBound,
-      negate: negateGateBound,
-      allocation: () => 0n,
-    },
     "forshor-phase-product-gates-v3": {
       modelVersion: "forshor-phase-product-gates-v3",
       rippleAdder: cuccaroModAddGateCount,
       negate: cuccaroNegateGateCount,
       allocation: signExtensionAllocationGateCount,
     },
-    "forshor-phase-product-gates-v3-loose4kw": {
-      modelVersion: "forshor-phase-product-gates-v3-loose4kw",
-      rippleAdder: cuccaroModAddGateCount,
-      negate: cuccaroNegateGateCount,
-      allocation: looseAllocationGateBound,
-    },
   };
 
   const MODEL_ALIASES = {
-    v2: "forshor-phase-product-gates-v2",
     v3: "forshor-phase-product-gates-v3",
-    "v3-loose4kw": "forshor-phase-product-gates-v3-loose4kw",
+  };
+
+  const RETIRED_MODELS = {
+    "forshor-phase-product-gates-v2":
+      "v2 mirrored the companion's phaseProductCostModel, which the companion deleted",
+    v2: "v2 mirrored the companion's phaseProductCostModel, which the companion deleted",
+    "forshor-phase-product-gates-v3-loose4kw":
+      "the 4kW allocation term was never a companion definition, only a proof bound",
+    "v3-loose4kw":
+      "the 4kW allocation term was never a companion definition, only a proof bound",
   };
 
   function costsFor(version) {
     const resolved = MODEL_ALIASES[version] || version;
     const costs = COST_MODELS[resolved];
-    if (!costs) throw new RangeError(`unknown cost model: ${version}`);
+    if (!costs) {
+      const retired = RETIRED_MODELS[version] || RETIRED_MODELS[resolved];
+      if (retired) throw new RangeError(`retired cost model: ${version} -- ${retired}`);
+      throw new RangeError(`unknown cost model: ${version}`);
+    }
     return costs;
   }
 
@@ -594,11 +599,12 @@
     modelVersions: Object.freeze(Object.keys(COST_MODELS)),
     selectModel,
     truncatedSub,
+    rippleAdderGateBound,
+    negateGateBound,
     cuccaroModAddGateCount,
     cuccaroNegateGateCount,
     topLimbWidth,
     signExtensionAllocationGateCount,
-    looseAllocationGateBound,
     phaseLimbWidthOfWidth,
     phaseLimbWidth,
     phaseSplitLogicalWidth,
@@ -607,8 +613,6 @@
     scanNeededWidths,
     maximumNeededWidth,
     nextSignedWidth,
-    rippleAdderGateBound,
-    negateGateBound,
     directSignedPhaseProductGateCount,
     phaseArithmeticOpCost,
     analyzeProgram,

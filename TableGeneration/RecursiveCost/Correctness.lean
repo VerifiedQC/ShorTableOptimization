@@ -12,20 +12,13 @@ minimum selection. They do not claim that ForShor's abstract gate model is a
 hardware resource estimate.
 -/
 
-@[simp] theorem updateWidth_apply_same {k : Nat}
-    (widths : Fin k → Nat) (index : Fin k) (width : Nat) :
-    updateWidth widths index width index = width := by
-  simp [updateWidth]
-
-theorem updateWidth_apply_ne {k : Nat}
-    (widths : Fin k → Nat) (index other : Fin k) (width : Nat)
-    (h : other ≠ index) :
-    updateWidth widths index width other = widths other := by
-  simp [updateWidth, h]
+/-! The width scan is the companion's, so its slot-update lemmas are Mathlib's
+`Function.update_self` / `Function.update_of_ne`. Only the transition that is
+specific to this language needs restating. -/
 
 @[simp] theorem updateWidthState_phaseProduct {k : Nat}
-    (state : WidthState k) (index : Fin k) :
-    updateWidthState state (.phaseProduct index) = state := by
+    (state : ForShor.WidthState k) (index : Fin k) :
+    ForShor.updateWidthState state (.phaseProduct index) = state := by
   rfl
 
 @[simp] theorem phaseProgramOverhead_nil {k : Nat} (workingWidth : Nat) :

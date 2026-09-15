@@ -32,6 +32,7 @@ from pathlib import Path
 PINNED_COMMIT = "d5a165b"
 
 FRAMEWORK = "FastMultiplication/ShorVerification/Framework"
+IMPL = "FastMultiplication/ShorVerification/Implementation"
 
 # our_module -> (companion file, [declaration names])
 MANIFEST: dict[str, tuple[str, list[str]]] = {
@@ -47,9 +48,46 @@ MANIFEST: dict[str, tuple[str, list[str]]] = {
         f"{FRAMEWORK}/Gatecount/CostModel.lean",
         ["LowGateCostModel", "gateCount"],
     ),
+    "Layout.lean": (
+        f"{IMPL}/PhaseProduct/Compiler/Layout.lean",
+        [
+            "WidthState",
+            "updateWidthState",
+            "NeededWidths",
+            "mergeNeededWidths",
+            "widthsOfState",
+            "phaseLimbWidthOfWidth",
+            "phaseLimbWidth",
+            "isTopChunk",
+            "phaseSplitLogicalWidth",
+            "commonNeededWidth",
+            "extraDelta",
+        ],
+    ),
+    "Widths.lean": (
+        f"{IMPL}/PhaseProduct/Compiler/Widths.lean",
+        [
+            "initWidthState",
+            "scanNeededWidthsAux",
+            "scanNeededWidths",
+            "phaseInputSize",
+            "nextSignedWidth",
+        ],
+    ),
+    "Definitions.lean": (
+        f"{IMPL}/GateCount/Definitions.lean",
+        [
+            "phaseArithmeticOpCost",
+            "phaseProgramOverhead",
+            "phaseOpWidthGrowth",
+            "phaseProgramWidthGrowth",
+        ],
+    ),
     "ResourceModel.lean": (
         f"{FRAMEWORK}/Gatecount/ResourceModel.lean",
         [
+            "rippleAdderGateBound",
+            "negateGateBound",
             "directSignedPhaseProductGateCount",
             "GateResources",
             "zero",
@@ -80,6 +118,8 @@ DEVIATIONS: dict[str, str] = {
 # Ours only: not from the companion, so nothing to compare against.
 OURS_ONLY = {
     "ListDisjoint",
+    "cuccaroModAddResources_totalGates_le_rippleAdderGateBound",
+    "negateResourcesAtWidth_totalGates_le_negateGateBound",
     "canonicalReg",
     "canonicalExtReg",
     "canonicalReg_width",

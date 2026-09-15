@@ -73,7 +73,7 @@ function testWidthModel() {
   );
 }
 
-const MODELS = ["v2", "v3", "v3-loose4kw"];
+const MODELS = ["v3"];
 
 function modelApi(version) {
   return RecursiveCost.selectModel(version);
@@ -102,10 +102,11 @@ function testGateModel() {
     RecursiveCost.signExtensionAllocationGateCount(2048, 2048, 5, 440),
     2n * ((440n - 412n) + (440n - 412n)),
   );
-  assert.equal(RecursiveCost.looseAllocationGateBound(2048, 2048, 5, 440), 8800n);
 
-  // Pin this to a named model rather than to whatever the default is: the
-  // default moved from v2 to v3 and silently changed the expected value.
+  // Pin this to a named model rather than to whatever the default is. That
+  // lesson came from a real break: the default moved and silently changed the
+  // expected value. v2 and v3-loose4kw have since been retired -- they mirrored
+  // a model the companion deleted and a bound it never defined as a model.
   const arithmeticProbe = {
     policyId: "arithmetic-test",
     k: 2,
@@ -116,7 +117,7 @@ function testGateModel() {
       ["phaseProduct", 0],
     ],
   };
-  for (const [model, expectedGates] of [["v2", 350n], ["v3", 302n]]) {
+  for (const [model, expectedGates] of [["v3", 302n]]) {
     assert.deepEqual(
       RecursiveCost.selectModel(model).analyzeProgram(8, 8, arithmeticProbe),
       {
@@ -131,25 +132,24 @@ function testGateModel() {
 }
 
 function testPlanner() {
-  // These are v2's values. Pin the model rather than inherit the default, which
-  // moved to v3; the version-parameterized differential tests below cover v3.
-  const RC = RecursiveCost.selectModel("v2");
+  // Pin the model rather than inherit the default.
+  const RC = RecursiveCost.selectModel("v3");
   const width8 = RC.bestPlan([binaryCandidate], 8);
-  assert.equal(width8.gateCount, 250n);
+  assert.equal(width8.gateCount, 254n);
   assert.equal(width8.recursionHeight, 1);
   assert.equal(width8.totalRecursiveCallCount, 2n);
   assert.equal(width8.choice.k, 2);
   assert.equal(width8.choice.childWidth, 5);
 
   const width16 = RC.bestPlan([binaryCandidate], 16);
-  assert.equal(width16.gateCount, 640n);
+  assert.equal(width16.gateCount, 668n);
   assert.equal(width16.recursionHeight, 3);
   assert.equal(width16.totalRecursiveCallCount, 14n);
   assert.deepEqual(RC.compactPlan(width16), {
-    model_version: "forshor-phase-product-gates-v2",
+    model_version: "forshor-phase-product-gates-v3",
     objective: RC.objective,
     width: 16,
-    gate_count: "640",
+    gate_count: "668",
     recursion_height: 3,
     recursive_call_count: "14",
     arithmetic_operation_count: "0",
@@ -163,8 +163,8 @@ function testPlanner() {
         k: 2,
         child_width: 9,
         recursive_products_per_node: 2,
-        local_gate_count_per_node: "0",
-        expanded_local_gate_count: "0",
+        local_gate_count_per_node: "4",
+        expanded_local_gate_count: "4",
         local_arithmetic_operations_per_node: 0,
         expanded_arithmetic_operations: "0",
       },
@@ -177,8 +177,8 @@ function testPlanner() {
         k: 2,
         child_width: 6,
         recursive_products_per_node: 2,
-        local_gate_count_per_node: "0",
-        expanded_local_gate_count: "0",
+        local_gate_count_per_node: "4",
+        expanded_local_gate_count: "8",
         local_arithmetic_operations_per_node: 0,
         expanded_arithmetic_operations: "0",
       },
@@ -191,8 +191,8 @@ function testPlanner() {
         k: 2,
         child_width: 4,
         recursive_products_per_node: 2,
-        local_gate_count_per_node: "0",
-        expanded_local_gate_count: "0",
+        local_gate_count_per_node: "4",
+        expanded_local_gate_count: "16",
         local_arithmetic_operations_per_node: 0,
         expanded_arithmetic_operations: "0",
       },
@@ -314,7 +314,7 @@ function deterministicWidths() {
   return [...new Set(widths)];
 }
 
-function runLeanOracle(arguments_, model = "v2") {
+function runLeanOracle(arguments_, model = "v3") {
   const repository = path.resolve(__dirname, "..");
   ensureLeanModulesBuilt(repository);
   const oracle = path.join(repository, "scripts/tests/RecursiveCostOracle.lean");
@@ -329,7 +329,7 @@ function runLeanOracle(arguments_, model = "v2") {
   return result.stdout.trim().split("\n").filter(Boolean);
 }
 
-function leanPlans(widths, mode = null, model = "v2") {
+function leanPlans(widths, mode = null, model = "v3") {
   const arguments_ = mode === null
     ? widths.map(String)
     : [mode, ...widths.map(String)];
@@ -364,7 +364,21 @@ function testBalancedReferenceAgreement() {
   }
 }
 
-function testDenseSparseAgreement(model = "v2") {
+// The Lean planner evaluates an array-based width scan, not the companion's
+// Function.update scan. Nothing types them together, so the oracle checks them
+// against each other over the promoted catalogue.
+function testWidthScanAgreement(model = "v3") {
+  const output = runLeanOracle(
+    ["--width-scan", "8", "16", "64", "128", "512", "1024", "2048", "4096"],
+    model,
+  );
+  assert(
+    output.includes("width scan agreement passed"),
+    `width scan agreement failed under ${model}: ${output}`,
+  );
+}
+
+function testDenseSparseAgreement(model = "v3") {
   const api = modelApi(model);
   const widths = [
     ...Array.from({ length: 33 }, (_, index) => index),
@@ -385,7 +399,7 @@ function testDenseSparseAgreement(model = "v2") {
   );
 }
 
-function testLeanDifferential(model = "v2") {
+function testLeanDifferential(model = "v3") {
   const api = modelApi(model);
   const widths = deterministicWidths();
   const lean = leanPlans(widths, null, model);
@@ -407,7 +421,7 @@ function testLeanDifferential(model = "v2") {
   });
 }
 
-function testBestKnownDifferential(model = "v2") {
+function testBestKnownDifferential(model = "v3") {
   const api = modelApi(model);
   const candidates = bestKnownCatalog();
   assert.deepEqual(candidates.map(candidate => candidate.k), [
@@ -447,6 +461,7 @@ async function main() {
   await testPublishedArchive();
   testBalancedReferenceAgreement();
   for (const model of MODELS) {
+    testWidthScanAgreement(model);
     testDenseSparseAgreement(model);
     testLeanDifferential(model);
     testBestKnownDifferential(model);
