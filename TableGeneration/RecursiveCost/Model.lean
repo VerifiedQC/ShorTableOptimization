@@ -170,6 +170,11 @@ def directSignedPhaseProductGateCount (xWidth zWidth : Nat) : Nat :=
 /--
 Nonrecursive arithmetic cost of one table operation at the common working
 width. Arithmetic is applied once to each of the two PhaseProduct operands.
+
+This is the **v2** model, retained so the `_v2` agreement lemmas have
+something to name. It is not the operative model: the planner uses the
+`...With` form at `v3Costs`. New callers must pass a `CostConstants`
+explicitly rather than calling this.
 -/
 def phaseArithmeticOpCost {k : Nat}
     (workingWidth : Nat) : valid_ops k → Nat
@@ -179,7 +184,14 @@ def phaseArithmeticOpCost {k : Nat}
   | .addScaled _ _ _ _ => 2 * rippleAdderGateBound workingWidth
   | .phaseProduct _ => 0
 
-/-- Total nonrecursive gate cost of a table-generation program. -/
+/--
+Total nonrecursive gate cost of a table-generation program.
+
+This is the **v2** model, retained so the `_v2` agreement lemmas have
+something to name. It is not the operative model: the planner uses the
+`...With` form at `v3Costs`. New callers must pass a `CostConstants`
+explicitly rather than calling this.
+-/
 def phaseProgramOverhead {k : Nat}
     (workingWidth : Nat) (ops : Prog k) : Nat :=
   ops.foldr (fun op total => phaseArithmeticOpCost workingWidth op + total) 0
@@ -313,7 +325,14 @@ structure ProgramAnalysis where
   recursiveCallCount : Nat
 deriving Repr, DecidableEq
 
-/-- Analyze a verified program at the supplied PhaseProduct operand widths. -/
+/--
+Analyze a verified program at the supplied PhaseProduct operand widths.
+
+This is the **v2** model, retained so the `_v2` agreement lemmas have
+something to name. It is not the operative model: the planner uses the
+`...With` form at `v3Costs`. New callers must pass a `CostConstants`
+explicitly rather than calling this.
+-/
 def analyzeProgram {k : Nat}
     (xWidth zWidth : Nat) (ops : Prog k) : ProgramAnalysis :=
   let childWidth := nextSignedWidth xWidth zWidth ops
@@ -322,7 +341,14 @@ def analyzeProgram {k : Nat}
     arithmeticOperationCount := TableGeneration.arithmeticOperationCount ops
     recursiveCallCount := TableGeneration.phaseProductCount ops }
 
-/-- Planner-oriented balanced analysis using the compact array width scan. -/
+/--
+Planner-oriented balanced analysis using the compact array width scan.
+
+This is the **v2** model, retained so the `_v2` agreement lemmas have
+something to name. It is not the operative model: the planner uses the
+`...With` form at `v3Costs`. New callers must pass a `CostConstants`
+explicitly rather than calling this.
+-/
 def analyzeBalancedProgram {k : Nat}
     (width : Nat) (ops : Prog k) : ProgramAnalysis :=
   let childWidth := nextBalancedSignedWidth width ops
