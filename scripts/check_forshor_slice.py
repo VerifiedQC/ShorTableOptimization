@@ -1,22 +1,40 @@
 #!/usr/bin/env python3
 """Check the integrated companion cost-model slice against its source.
 
-`TableGeneration/RecursiveCost/ForShor/` holds a small set of definitions taken
-verbatim from the companion development. Because they are integrated rather
-than depended on, nothing stops them drifting from upstream. This script is the
-check.
+**A maintainer tool, run by hand. Not a CI gate.**
 
-It needs a companion checkout, supplied by `--forshor` or `$FORSHOR_ROOT`, and
-**skips cleanly when neither is set**, so it is safe to wire into a workflow
-that has no access to one. It never reaches the network and never records a
-URL: the path comes from the environment.
+`TableGeneration/RecursiveCost/ForShor/` holds a small set of definitions taken
+verbatim from the companion development and pinned to the commit in
+`PINNED_COMMIT`. This project is not a dependent of the companion -- it is built
+on the same framework, and small divergences in the framework layer are fine.
+The cost model is the part that must not drift, and it is finished, so checking
+it is something you do deliberately when syncing the slice to a new companion
+commit, not something worth running on every promotion.
+
+What guards the cost model continuously is in-repo and needs no companion
+checkout: the oracle's `--width-scan` and `--allocation` modes
+(`scripts/tests/RecursiveCostOracle.lean`, run by
+`scripts/test_recursive_cost.js` in CI) check the planner's array width scan and
+its closed-form allocation charge against the integrated copies. This script
+answers a different question -- whether those integrated copies still match
+upstream.
+
+Usage:
+
+    FORSHOR_ROOT=/path/to/ForShor python3 scripts/check_forshor_slice.py
+
+    # before re-pinning, compare against the companion's current HEAD instead
+    python3 scripts/check_forshor_slice.py --forshor /path/to/ForShor --working-tree
 
 For each declaration in MANIFEST it extracts the body from both trees,
 normalizes away comments, whitespace and the `Nat`/`Rat` spellings, and
-compares. Deviations that are known and deliberate are listed in DEVIATIONS
-with the reason, and are reported rather than treated as drift.
+compares. Deviations that are known and deliberate are listed in DEVIATIONS with
+the reason, and are reported rather than counted as drift.
 
-Exit codes: 0 agreement (or skipped), 1 drift found, 2 the check could not run.
+The companion path comes from the environment or the command line, so no URL is
+recorded here. Nothing reaches the network.
+
+Exit codes: 0 agreement, 1 drift found, 2 the check could not run.
 """
 
 from __future__ import annotations
@@ -229,9 +247,14 @@ def main() -> int:
     args = parser.parse_args()
 
     if not args.forshor:
-        print("check_forshor_slice: no companion checkout given "
-              "(--forshor or $FORSHOR_ROOT); skipping.")
-        return 0
+        print("check_forshor_slice: no companion checkout given.\n"
+              "  Pass --forshor <path> or set FORSHOR_ROOT.\n"
+              "  This is a maintainer tool for re-checking the integrated slice "
+              "against upstream;\n"
+              "  the continuous guards on the cost model are the oracle's "
+              "--width-scan and --allocation modes.",
+              file=sys.stderr)
+        return 2
 
     root = Path(args.forshor).expanduser()
     if not root.is_dir():

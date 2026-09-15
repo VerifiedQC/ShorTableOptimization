@@ -69,6 +69,31 @@ than numbers copied from the companion, and
 `cuccaroNegateGateCount_eq_model` ties the planner's constant to what
 `shorGateCostModel.negate` charges, by `rfl` and with no axioms.
 
+### Re-checking the slice against upstream
+
+The slice is pinned to companion commit `d5a165b`. It is a copy, so it can drift
+if the companion changes. Re-check it deliberately when syncing to a newer
+commit:
+
+```sh
+FORSHOR_ROOT=/path/to/ForShor python3 scripts/check_forshor_slice.py
+
+# before re-pinning, compare against the companion's HEAD instead
+python3 scripts/check_forshor_slice.py --forshor /path/to/ForShor --working-tree
+```
+
+It reports how many declarations match, lists the deliberate deviations with
+their reasons, and exits non-zero on drift. It currently reports 61 matching
+with 5 declared deviations, all of them generic order lemmas replaced by defeq
+`Nat` counterparts.
+
+This is a maintainer tool, not a CI gate: a hosted runner has no companion
+checkout, so running it there would only ever skip. What guards the cost model
+continuously is in-repo and needs no checkout -- the oracle's `--width-scan` and
+`--allocation` modes, run by `scripts/test_recursive_cost.js`, which check the
+planner's array width scan and its closed-form allocation charge against the
+integrated copies.
+
 ForShor is deliberately *not* a Lake dependency. Its cost-model files reach
 `Mathlib.Tactic`, and this repository stays dependency-free so that the
 submission axiom audit remains `propext`-only and a submitter's first build
