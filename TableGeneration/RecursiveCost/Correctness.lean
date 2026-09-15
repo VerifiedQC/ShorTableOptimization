@@ -1,4 +1,8 @@
 import TableGeneration.RecursiveCost.Planner
+-- Keeps the allocation agreement in the library's build graph. The test oracle
+-- imports it, and without this nothing else does, so `lake build` would not
+-- produce its olean and the oracle would fail on a clean checkout.
+import TableGeneration.RecursiveCost.ForShor.AllocationAgreement
 
 namespace TableGeneration.RecursiveCost
 
