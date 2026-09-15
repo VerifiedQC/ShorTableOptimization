@@ -104,7 +104,9 @@ function testGateModel() {
   );
   assert.equal(RecursiveCost.looseAllocationGateBound(2048, 2048, 5, 440), 8800n);
 
-  const analysis = RecursiveCost.analyzeProgram(8, 8, {
+  // Pin this to a named model rather than to whatever the default is: the
+  // default moved from v2 to v3 and silently changed the expected value.
+  const arithmeticProbe = {
     policyId: "arithmetic-test",
     k: 2,
     operations: [
@@ -113,30 +115,39 @@ function testGateModel() {
       ["addScaled", 0, 1, 1, 2],
       ["phaseProduct", 0],
     ],
-  });
-  assert.deepEqual(analysis, {
-    childWidth: 9,
-    arithmeticGateCount: 350n,
-    arithmeticOperationCount: 3,
-    recursiveCallCount: 1,
-  });
+  };
+  for (const [model, expectedGates] of [["v2", 350n], ["v3", 302n]]) {
+    assert.deepEqual(
+      RecursiveCost.selectModel(model).analyzeProgram(8, 8, arithmeticProbe),
+      {
+        childWidth: 9,
+        arithmeticGateCount: expectedGates,
+        arithmeticOperationCount: 3,
+        recursiveCallCount: 1,
+      },
+      `arithmetic probe under ${model}`,
+    );
+  }
 }
 
 function testPlanner() {
-  const width8 = RecursiveCost.bestPlan([binaryCandidate], 8);
+  // These are v2's values. Pin the model rather than inherit the default, which
+  // moved to v3; the version-parameterized differential tests below cover v3.
+  const RC = RecursiveCost.selectModel("v2");
+  const width8 = RC.bestPlan([binaryCandidate], 8);
   assert.equal(width8.gateCount, 250n);
   assert.equal(width8.recursionHeight, 1);
   assert.equal(width8.totalRecursiveCallCount, 2n);
   assert.equal(width8.choice.k, 2);
   assert.equal(width8.choice.childWidth, 5);
 
-  const width16 = RecursiveCost.bestPlan([binaryCandidate], 16);
+  const width16 = RC.bestPlan([binaryCandidate], 16);
   assert.equal(width16.gateCount, 640n);
   assert.equal(width16.recursionHeight, 3);
   assert.equal(width16.totalRecursiveCallCount, 14n);
-  assert.deepEqual(RecursiveCost.compactPlan(width16), {
-    model_version: RecursiveCost.modelVersion,
-    objective: RecursiveCost.objective,
+  assert.deepEqual(RC.compactPlan(width16), {
+    model_version: "forshor-phase-product-gates-v2",
+    objective: RC.objective,
     width: 16,
     gate_count: "640",
     recursion_height: 3,
