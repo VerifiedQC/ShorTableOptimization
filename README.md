@@ -123,11 +123,19 @@ estimated logical-gate contributions; see
 
 ## Local Checks
 
-Build the Lean template:
+Fetch the prebuilt Mathlib artifacts, then build the Lean template:
 
 ```bash
+lake exe cache get
 lake build TableGeneration
 ```
+
+`lake exe cache get` is not optional on a fresh checkout. The recursive cost
+model reproduces the companion development's definitions, two of which
+(`Function.update` and `Finset.univ.sup`) have no Lean-core equivalent, so
+Mathlib is a dependency. Fetching its prebuilt artifacts takes a few minutes;
+compiling them from source takes hours. Nothing the submission contract depends
+on imports Mathlib, so a submission's own proofs stay Mathlib-free.
 
 Check the Lean reference model against the shared browser/Node calculator:
 

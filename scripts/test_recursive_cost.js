@@ -367,6 +367,57 @@ function testBalancedReferenceAgreement() {
 // The Lean planner evaluates an array-based width scan, not the companion's
 // Function.update scan. Nothing types them together, so the oracle checks them
 // against each other over the promoted catalogue.
+// Direct cost-model differential: the JavaScript mirror against the Lean
+// definitions, primitive by primitive.
+//
+// The planner differential below compares whole plans, which is indirect -- a
+// compensating pair of errors in two primitives could cancel. This compares the
+// primitives themselves, and deliberately includes widths below 3, where
+// truncated Nat subtraction makes the published closed forms diverge from the
+// structural counts and a naive mirror would be wrong.
+function testCostModelDifferential(model = "v3") {
+  // The primitives are module-level, not per-planner: one cost model now.
+  const api = RecursiveCost;
+  const widths = [
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65,
+    127, 128, 129, 255, 256, 257, 511, 512, 513, 1023, 1024, 1025,
+    2047, 2048, 2049, 4096, 8192, 16384,
+  ];
+  const lines = runLeanOracle(["--costs", ...widths.map(String)], model);
+  let costRows = 0;
+  let allocRows = 0;
+  for (const line of lines) {
+    const parts = line.split("\t");
+    if (parts[0] === "cost") {
+      const [, w, adder, negate, leaf] = parts;
+      const width = Number(w);
+      assert.equal(String(api.cuccaroModAddGateCount(width)), adder,
+        `adder cost at width ${width}`);
+      assert.equal(String(api.cuccaroNegateGateCount(width)), negate,
+        `negate cost at width ${width}`);
+      assert.equal(String(api.directSignedPhaseProductGateCount(width, width)), leaf,
+        `direct leaf cost at width ${width}`);
+      costRows += 1;
+    } else if (parts[0] === "alloc") {
+      const [, w, k, childWidth, limb, topLimb, alloc] = parts;
+      const width = Number(w);
+      const arity = Number(k);
+      assert.equal(String(api.phaseLimbWidth(width, width, arity)), limb,
+        `limb width at width ${width}, k ${arity}`);
+      assert.equal(String(api.topLimbWidth(width, Number(limb), arity)), topLimb,
+        `top limb at width ${width}, k ${arity}`);
+      assert.equal(
+        String(api.signExtensionAllocationGateCount(width, width, arity, Number(childWidth))),
+        alloc,
+        `allocation at width ${width}, k ${arity}, child ${childWidth}`,
+      );
+      allocRows += 1;
+    }
+  }
+  assert.equal(costRows, widths.length, "every width emitted a cost row");
+  assert(allocRows >= widths.length * 5, "every width emitted allocation rows");
+}
+
 function testWidthScanAgreement(model = "v3") {
   const output = runLeanOracle(
     ["--width-scan", "8", "16", "64", "128", "512", "1024", "2048", "4096"],
@@ -441,9 +492,21 @@ function testBestKnownDifferential(model = "v3") {
   assert.deepEqual(candidates.map(candidate => candidate.k), [
     2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
   ]);
+  // Dense at the bottom, where Nat truncation in the Cuccaro formulas bites,
+  // then every power-of-two boundary through the benchmark range. The paper's
+  // reported widths (1024, 2048, 4096, 8192, 16384) are all covered, and the
+  // +/-1 neighbours catch off-by-one in the limb split.
   const widths = [
     ...Array.from({ length: 65 }, (_, index) => index),
-    127, 128, 129, 2048, 4096,
+    127, 128, 129,
+    255, 256, 257,
+    511, 512, 513,
+    1023, 1024, 1025,
+    2047, 2048, 2049,
+    4095, 4096, 4097,
+    8191, 8192, 8193,
+    16383, 16384, 16385,
+    3000, 5000, 6000, 7000, 10000, 12000, 14000,
   ];
   const lean = leanPlans(widths, "--best-known", model);
   const plans = api.bestPlans(candidates, widths);
@@ -475,6 +538,7 @@ async function main() {
   await testPublishedArchive();
   testBalancedReferenceAgreement();
   for (const model of MODELS) {
+    testCostModelDifferential(model);
     testWidthScanAgreement(model);
     testAllocationAgreement(model);
     testDenseSparseAgreement(model);
