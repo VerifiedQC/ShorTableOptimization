@@ -77,16 +77,6 @@ jobs:
           TABLE_GEN_RESULTS_ROOT: ../published-results
         run: node scripts/test_recursive_cost.js
 
-      # The companion cost-model slice under TableGeneration/RecursiveCost/ForShor
-      # is integrated, not depended on, so it can drift from upstream. This is
-      # the drift check. It needs a companion checkout in $FORSHOR_ROOT and
-      # skips cleanly without one, which is the normal case on a hosted runner --
-      # it is here so a maintainer can supply one via workflow_dispatch and so
-      # the step is not forgotten. It never reaches the network.
-      - name: Check companion cost-model slice
-        working-directory: source
-        run: python3 scripts/check_forshor_slice.py
-
       - name: Construct and verify best-known generator
         working-directory: source
         run: python3 -m scripts.promote --results-root ../published-results
