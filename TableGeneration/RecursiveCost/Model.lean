@@ -1,4 +1,5 @@
 import TableGeneration.Metrics
+import TableGeneration.RecursiveCost.ForShor.ResourceModel
 
 namespace TableGeneration.RecursiveCost
 
@@ -231,13 +232,48 @@ structure CostConstants where
   -/
   allocation : Nat → Nat → Nat → Nat → Nat
 
-/-- Exact Cuccaro modulo-`2^w` ripple-carry adder total, `9w - 16` for `w >= 3`. -/
-def cuccaroModAddGateCount (width : Nat) : Nat :=
-  (2 * width - 6) + (5 * width - 7) + (2 * width - 3)
+/-!
+The `v3` arithmetic costs are not written down here. They are read off the
+companion's own resource records, integrated verbatim under
+`TableGeneration.RecursiveCost.ForShor`, so that this planner charges what
+`shorGateCostModel` charges rather than a number copied from it. The familiar
+closed forms are recovered as theorems below.
+-/
 
-/-- Exact Cuccaro-based negation total, `10w - 14` for `w >= 3`. -/
+/-- Cuccaro modulo-`2^w` ripple-carry adder total, taken from the companion's
+`cuccaroModAddResources`. Equals `9w - 16` for `w >= 3`
+(`cuccaroModAddGateCount_eq`). -/
+def cuccaroModAddGateCount (width : Nat) : Nat :=
+  (ForShor.cuccaroModAddResources width).totalGates
+
+/-- Cuccaro-based negation total, taken from the companion's `negateResources`
+at the given width. Equals `10w - 14` for `w >= 3` (`cuccaroNegateGateCount_eq`),
+and is what `shorGateCostModel.negate` charges any register of that width
+(`cuccaroNegateGateCount_eq_model`). -/
 def cuccaroNegateGateCount (width : Nat) : Nat :=
-  (width + (2 * width - 6) + 2) + (5 * width - 7) + (2 * width - 3)
+  (ForShor.negateResourcesAtWidth width).totalGates
+
+theorem cuccaroModAddGateCount_eq (width : Nat) (hw : 3 <= width) :
+    cuccaroModAddGateCount width = 9 * width - 16 :=
+  ForShor.cuccaroModAddResources_totalGates width hw
+
+theorem cuccaroNegateGateCount_eq (width : Nat) (hw : 3 <= width) :
+    cuccaroNegateGateCount width = 10 * width - 14 :=
+  ForShor.negateResourcesAtWidth_totalGates width hw
+
+/-- The planner's negation cost is what the operative model charges any register
+of that width. -/
+theorem cuccaroNegateGateCount_eq_model (r : ForShor.ExtReg) :
+    (ForShor.negateResources r).totalGates
+      = cuccaroNegateGateCount (ForShor.ExtReg.width r) := rfl
+
+/-- The companion's `addScaled` charges the adder at the destination width, so
+the planner's per-operation adder cost is the same function. -/
+theorem cuccaroModAddGateCount_eq_addScaled (width : Nat) (src : ForShor.ExtReg)
+    (negSrc : Bool) (shift : Nat) :
+    cuccaroModAddGateCount width =
+      (ForShor.addScaledResources (ForShor.canonicalExtReg width) src negSrc shift).totalGates := by
+  rw [cuccaroModAddGateCount, ForShor.addScaledResources, ForShor.canonicalExtReg_width]
 
 /-- Logical width of the most-significant limb of a top-heavy split. -/
 def topLimbWidth (width limbWidth k : Nat) : Nat :=
@@ -274,7 +310,8 @@ def v2Costs : CostConstants where
   negate := negateGateBound
   allocation := fun _ _ _ _ => 0
 
-/-- Model transcribed from `shorGateCostModel` at companion commit `d5a165b`. -/
+/-- The companion's `shorGateCostModel` arithmetic, read from the resource
+records integrated at commit `d5a165b` rather than transcribed. -/
 def v3Costs : CostConstants where
   version := "forshor-phase-product-gates-v3"
   rippleAdder := cuccaroModAddGateCount
