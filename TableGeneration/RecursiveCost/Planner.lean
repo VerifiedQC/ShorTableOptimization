@@ -2,8 +2,12 @@ import TableGeneration.RecursiveCost.Catalog
 
 namespace TableGeneration.RecursiveCost
 
-/-- Version attached to every result produced by this cost model. -/
-def modelVersion : String := "forshor-phase-product-gates-v2"
+/-- Version attached to every result produced by the cost model.
+
+There is one model: the companion's operative `shorGateCostModel` at commit
+`d5a165b`. The string is retained because archived plan output carries it, so a
+future companion cost-model change cannot silently reinterpret old estimates. -/
+def modelVersion : String := "forshor-phase-product-gates-v3"
 
 /-- Stable machine-readable optimization objective. -/
 def objective : String := "logical_gate_count"
@@ -66,9 +70,9 @@ def lowerGateCount (candidate current : PlanResult) : PlanResult :=
   if candidate.gateCount < current.gateCount then candidate else current
 
 /--
-Dense reference recurrence: choose the minimum-gate plan for `width` from
-children already computed at every smaller width. Noncontracting recursive
-candidates are rejected.
+Dense reference recurrence under a chosen model version: choose the
+minimum-gate plan for `width` from children already computed at every smaller
+width. Noncontracting recursive candidates are rejected.
 -/
 def chooseAtWidth
     (candidates : List Candidate) (plans : Array PlanResult)
@@ -88,7 +92,8 @@ Readable dense reference planner for every width through `maxWidth`. The
 production entry point `bestPlan` uses the equivalent sparse planner below.
 -/
 def buildPlanTable
-    (candidates : List Candidate) (maxWidth : Nat) : Array PlanResult :=
+    (candidates : List Candidate) (maxWidth : Nat) :
+    Array PlanResult :=
   (List.range (maxWidth + 1)).foldl
     (fun plans width => plans.push (chooseAtWidth candidates plans width)) #[]
 
@@ -110,7 +115,8 @@ def enqueueContractingChildren
 
 /-- Worklist traversal bounded by the number of widths no greater than the root. -/
 def reachableWidthsAux
-    (candidates : List Candidate) : Nat → List Nat → List Nat → List Nat
+    (candidates : List Candidate) :
+    Nat → List Nat → List Nat → List Nat
   | 0, _, seen => seen
   | _ + 1, [], seen => seen
   | fuel + 1, width :: pending, seen =>
@@ -118,7 +124,8 @@ def reachableWidthsAux
       reachableWidthsAux candidates fuel pending' (width :: seen)
 
 /-- Widths needed to answer all supplied root queries. -/
-def reachableWidths (candidates : List Candidate) (roots : List Nat) : List Nat :=
+def reachableWidths
+    (candidates : List Candidate) (roots : List Nat) : List Nat :=
   let maxWidth := roots.foldl max 0
   reachableWidthsAux candidates (maxWidth + 1) roots.eraseDups []
 
@@ -142,12 +149,14 @@ preserves the dense reference recurrence without rescanning every intermediate
 integer width.
 -/
 def buildSparsePlans
-    (candidates : List Candidate) (roots : List Nat) : List PlanResult :=
+    (candidates : List Candidate) (roots : List Nat) :
+    List PlanResult :=
   (reachableWidths candidates roots).mergeSort.foldl
     (fun plans width => chooseAtWidthSparse candidates plans width :: plans) []
 
-/-- Minimum-gate plan at `width`, with a direct base-case fallback. -/
-def bestPlan (candidates : List Candidate) (width : Nat) : PlanResult :=
+/-- Minimum-gate plan at `width` under a model version. -/
+def bestPlan
+    (candidates : List Candidate) (width : Nat) : PlanResult :=
   (findPlan? (buildSparsePlans candidates [width]) width).getD
     (PlanResult.base width)
 

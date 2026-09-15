@@ -1,0 +1,77 @@
+name: Refresh Lean build cache
+
+# Builds `TableGeneration` on a trusted ref and saves `.lake/build` so that the
+# submission and promotion workflows can restore it instead of compiling the
+# accepted-policy modules from scratch.
+#
+# Why this exists: a cold `lake build TableGeneration` takes about ten minutes,
+# and three promoted policy modules account for essentially all of it --
+# `P6f7d25984ff8.GeneralParity` (212 s), `P348de30a1f93` (204 s) and
+# `Pf4aff955f16b.OptimizedParity` (194 s), out of 615 s total. Those modules are
+# regenerated only by promotion, never by a submitter, so recompiling them on
+# every pull request is pure waste against the submission job's budget.
+#
+# Mathlib is a dependency as of the cost-model integration, so the dependency
+# tree is cached separately from our own build: it changes only with the
+# manifest, while our build changes on every Lean edit.
+#
+# This workflow is the ONLY writer of the cache. It runs on `main`, so the
+# artifacts it stores are always built from trusted code. Consumers restore
+# read-only; see the note in `table-generation-submission.yml`.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'TableGeneration/**'
+      - 'lean-toolchain'
+      - 'lakefile.lean'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lean-build-cache-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install Lean
+        run: |
+          set -euo pipefail
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      # Mathlib's own oleans come from the community cache; compiling them from
+      # source would take hours. This must run before `lake build`.
+      - name: Fetch Mathlib oleans
+        run: lake exe cache get
+
+      - name: Build
+        run: lake build TableGeneration
+
+      # Two caches with different lifetimes. The dependency tree changes only
+      # when the manifest does; our own build changes on every Lean edit.
+      - name: Save dependency cache
+        uses: actions/cache/save@v4
+        with:
+          path: .lake/packages
+          key: lake-packages-${{ runner.os }}-${{ hashFiles('lake-manifest.json', 'lean-toolchain') }}
+
+      - name: Save build cache
+        uses: actions/cache/save@v4
+        with:
+          path: .lake/build
+          key: lake-build-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lakefile.lean', 'TableGeneration/**/*.lean') }}
