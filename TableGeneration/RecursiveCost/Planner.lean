@@ -3,7 +3,7 @@ import TableGeneration.RecursiveCost.Catalog
 namespace TableGeneration.RecursiveCost
 
 /-- Version attached to every result produced by the default cost model. -/
-def modelVersion : String := v2Costs.version
+def modelVersion : String := v3Costs.version
 
 /-- Stable machine-readable optimization objective. -/
 def objective : String := "logical_gate_count"
@@ -87,7 +87,7 @@ def chooseAtWidthWith
 def chooseAtWidth
     (candidates : List Candidate) (plans : Array PlanResult)
     (width : Nat) : PlanResult :=
-  chooseAtWidthWith v2Costs candidates plans width
+  chooseAtWidthWith v3Costs candidates plans width
 
 /--
 Readable dense reference planner for every width through `maxWidth`. The
@@ -102,7 +102,7 @@ def buildPlanTableWith
 /-- Dense reference planner under the `v2` model. -/
 def buildPlanTable
     (candidates : List Candidate) (maxWidth : Nat) : Array PlanResult :=
-  buildPlanTableWith v2Costs candidates maxWidth
+  buildPlanTableWith v3Costs candidates maxWidth
 
 /-- Minimum-gate plan at `width`, with a direct base-case fallback. -/
 def findPlan? (plans : List PlanResult) (width : Nat) : Option PlanResult :=
@@ -164,7 +164,7 @@ def buildSparsePlansWith
 /-- Production planner under the `v2` model. -/
 def buildSparsePlans
     (candidates : List Candidate) (roots : List Nat) : List PlanResult :=
-  buildSparsePlansWith v2Costs candidates roots
+  buildSparsePlansWith v3Costs candidates roots
 
 /-- Minimum-gate plan at `width` under a model version. -/
 def bestPlanWith
@@ -174,7 +174,7 @@ def bestPlanWith
 
 /-- Minimum-gate plan at `width`, with a direct base-case fallback. -/
 def bestPlan (candidates : List Candidate) (width : Nat) : PlanResult :=
-  bestPlanWith v2Costs candidates width
+  bestPlanWith v3Costs candidates width
 
 /-- Minimum-gate plan using the current promoted PhaseProduct catalog. -/
 def bestKnownPlanWith (costs : CostConstants) (width : Nat) : PlanResult :=
@@ -182,6 +182,6 @@ def bestKnownPlanWith (costs : CostConstants) (width : Nat) : PlanResult :=
 
 /-- Minimum-gate plan using the current promoted PhaseProduct catalog. -/
 def bestKnownPlan (width : Nat) : PlanResult :=
-  bestKnownPlanWith v2Costs width
+  bestKnownPlanWith v3Costs width
 
 end TableGeneration.RecursiveCost

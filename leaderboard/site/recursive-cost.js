@@ -401,7 +401,7 @@
     Object.keys(COST_MODELS).map(version => [version, plannerFor(COST_MODELS[version])]),
   );
 
-  const defaultPlanner = PLANNERS["forshor-phase-product-gates-v2"];
+  const defaultPlanner = PLANNERS["forshor-phase-product-gates-v3"];
   const modelVersion = defaultPlanner.modelVersion;
   const {
     phaseArithmeticOpCost,
