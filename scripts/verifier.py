@@ -36,7 +36,8 @@ CORRECTNESS_FILE = SUBMISSION_DIR / "Correctness.lean"
 POLICY_FILE = SUBMISSION_DIR / "Policy.lean"
 SUBMISSION_FILES = {str(DEFS_FILE), str(CORRECTNESS_FILE), str(POLICY_FILE)}
 ALLOWED_CHANGED_FILES = set(SUBMISSION_FILES)
-SUBMISSION_PREFIX = "TableGeneration/Submission/"
+HELPER_DIR = SUBMISSION_DIR / "Policy"
+HELPER_PREFIX = "TableGeneration/Submission/Policy/"
 PROTECTED_FILES = {
     "TableGeneration.lean",
     "TableGeneration/Basic.lean",
@@ -444,8 +445,13 @@ def get_changed_files(repo: Path) -> tuple[bool, list[str], str]:
 
 
 def is_allowed_changed_file(path: str) -> bool:
+    # The admitted set is kept a subset of what write_source_archive collects.
+    # Otherwise an accepted policy can depend on a file the archive never
+    # captured and stop being recheckable from its own bundle. Helpers
+    # therefore belong under Submission/Policy/, which is what the
+    # verify_changed_files failure message has always instructed.
     return path in ALLOWED_CHANGED_FILES or (
-        path.startswith(SUBMISSION_PREFIX) and path.endswith(".lean")
+        path.startswith(HELPER_PREFIX) and path.endswith(".lean")
     )
 
 
@@ -1216,9 +1222,18 @@ def verify(repo: Path, out_dir: Path, preflight_only: bool = False) -> dict[str,
 
 
 def write_source_archive(repo: Path, out_dir: Path) -> None:
+    # Collect exactly what is_allowed_changed_file admits. The adapter files
+    # are included because they are writable by a submission: the declaration
+    # checks pin the *named* wrappers and theorems, but neither forbids an
+    # extra definition that Policy.lean then depends on.
     archive_path = out_dir / "table-generation-submission-source.zip"
-    helper_root = repo / SUBMISSION_DIR / "Policy"
-    lean_files = [repo / POLICY_FILE, *sorted(helper_root.glob("**/*.lean"))]
+    helper_root = repo / HELPER_DIR
+    lean_files = [
+        repo / POLICY_FILE,
+        repo / DEFS_FILE,
+        repo / CORRECTNESS_FILE,
+        *sorted(helper_root.glob("**/*.lean")),
+    ]
     with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in lean_files:
             archive.write(path, arcname=path.relative_to(repo))
