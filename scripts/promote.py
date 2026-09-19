@@ -125,6 +125,13 @@ def selected_champions(
 
 
 def portable_members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
+    # This is the INSTALL set, deliberately narrower than the archive. The
+    # archive also carries Submission/Defs.lean and Submission/Correctness.lean
+    # so a submission can be reconstructed exactly; those two are adapters that
+    # exist on the base branch and are not installed per policy, and
+    # install_policy's path mapping below assumes every member sits under
+    # Policy/. Widening this filter without reworking that mapping would break
+    # promotion.
     members = []
     for info in archive.infolist():
         path = PurePosixPath(info.filename)
