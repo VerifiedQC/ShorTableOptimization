@@ -8,7 +8,6 @@
 }(typeof globalThis === "undefined" ? this : globalThis, function recursiveCostFactory() {
   "use strict";
 
-  const modelVersion = "forshor-phase-product-gates-v2";
   const objective = "logical_gate_count";
 
   function requireNatural(value, name) {
@@ -151,6 +150,33 @@
     return 1 + maximumNeededWidth(scanNeededWidths(xWidth, zWidth, k, operations));
   }
 
+  // ---------------------------------------------------------------------
+  // Cost-model versions.
+  //
+  // v2 is the model transcribed from the companion development at cb0fa12:
+  // rippleAdderGateBound(w) = 9w + 2 (a bound), free sign extension, and no
+  // allocation bookkeeping.
+  //
+  // v3 transcribes the operative model at companion commit d5a165b, namely
+  // shorGateCostModel = shorGateResourceModel.toCostModel in
+  // Framework/Gatecount/ResourceModel.lean:
+  //   * addScaled is the exact Cuccaro modulo adder,
+  //     (2w - 6) + (5w - 7) + (2w - 3) = 9w - 16 for w >= 3;
+  //   * negate is complement + constant-one register + that adder,
+  //     (w + (2w - 6) + 2) + (5w - 7) + (2w - 3) = 10w - 14 for w >= 3;
+  //   * shiftL / shiftR / zeroExtend / zeroDealloc are free;
+  //   * signExtend / signDealloc cost n CNOTs each.
+  // Truncated subtraction matches the companion's Nat arithmetic.
+  // ---------------------------------------------------------------------
+
+  function truncatedSub(left, right) {
+    return left > right ? left - right : 0n;
+  }
+
+  // The companion's conservative bounds. No model charges them -- the model
+  // that did, phaseProductCostModel, was deleted upstream -- but the companion
+  // still defines them and its recurrence-level cost still uses them, so they
+  // stay available for comparison.
   function rippleAdderGateBound(width) {
     requireNatural(width, "width");
     return 9n * BigInt(width) + 2n;
@@ -160,134 +186,239 @@
     return BigInt(width) + rippleAdderGateBound(width);
   }
 
+  function cuccaroModAddGateCount(width) {
+    requireNatural(width, "width");
+    const w = BigInt(width);
+    return truncatedSub(2n * w, 6n) + truncatedSub(5n * w, 7n) + truncatedSub(2n * w, 3n);
+  }
+
+  function cuccaroNegateGateCount(width) {
+    requireNatural(width, "width");
+    const w = BigInt(width);
+    return (w + truncatedSub(2n * w, 6n) + 2n) +
+      truncatedSub(5n * w, 7n) + truncatedSub(2n * w, 3n);
+  }
+
+  function topLimbWidth(width, limbWidth, k) {
+    return Math.max(0, width - (k - 1) * limbWidth);
+  }
+
+  // The companion's allocChunkGate sign-extends only the top limb and
+  // zero-extends the other k - 1 limbs, and zeroExtend / zeroDealloc are free.
+  // Each of the two top limbs is extended once and deallocated once.
+  function signExtensionAllocationGateCount(xWidth, zWidth, k, childWidth) {
+    const limbWidth = phaseLimbWidth(xWidth, zWidth, k);
+    return 2n * (
+      truncatedSub(BigInt(childWidth), BigInt(topLimbWidth(xWidth, limbWidth, k))) +
+      truncatedSub(BigInt(childWidth), BigInt(topLimbWidth(zWidth, limbWidth, k)))
+    );
+  }
+
   function directSignedPhaseProductGateCount(xWidth, zWidth) {
     requireNatural(xWidth, "xWidth");
     requireNatural(zWidth, "zWidth");
     return 5n * BigInt(xWidth) * BigInt(zWidth);
   }
 
-  function phaseArithmeticOpCost(workingWidth, operation) {
-    const name = operation[0];
-    if (name === "shiftL" || name === "shiftR" || name === "phaseProduct") return 0n;
-    if (name === "negate") return 2n * negateGateBound(workingWidth);
-    if (name === "addScaled") return 2n * rippleAdderGateBound(workingWidth);
-    throw new RangeError(`unknown operation: ${name}`);
-  }
+  // One model: the companion's operative shorGateCostModel at commit d5a165b.
+  //
+  // Two models used to live here. "v2" mirrored the companion's
+  // phaseProductCostModel -- bound arithmetic, free sign extension -- which the
+  // companion DELETED at 89c45ee. "v3-loose4kw" substituted a 4kW allocation
+  // term that the companion never defined at all; it appears only as an inline
+  // bound inside its asymptotic proofs. Neither describes what the companion
+  // charges, so neither is offered.
+  const COST_MODELS = {
+    "forshor-phase-product-gates-v3": {
+      modelVersion: "forshor-phase-product-gates-v3",
+      rippleAdder: cuccaroModAddGateCount,
+      negate: cuccaroNegateGateCount,
+      allocation: signExtensionAllocationGateCount,
+    },
+  };
 
-  function analyzeProgram(xWidth, zWidth, candidate) {
-    requireK(candidate.k);
-    if (typeof candidate.policyId !== "string" || !candidate.policyId) {
-      throw new TypeError("candidate policyId must be a nonempty string.");
+  const MODEL_ALIASES = {
+    v3: "forshor-phase-product-gates-v3",
+  };
+
+  const RETIRED_MODELS = {
+    "forshor-phase-product-gates-v2":
+      "v2 mirrored the companion's phaseProductCostModel, which the companion deleted",
+    v2: "v2 mirrored the companion's phaseProductCostModel, which the companion deleted",
+    "forshor-phase-product-gates-v3-loose4kw":
+      "the 4kW allocation term was never a companion definition, only a proof bound",
+    "v3-loose4kw":
+      "the 4kW allocation term was never a companion definition, only a proof bound",
+  };
+
+  function costsFor(version) {
+    const resolved = MODEL_ALIASES[version] || version;
+    const costs = COST_MODELS[resolved];
+    if (!costs) {
+      const retired = RETIRED_MODELS[version] || RETIRED_MODELS[resolved];
+      if (retired) throw new RangeError(`retired cost model: ${version} -- ${retired}`);
+      throw new RangeError(`unknown cost model: ${version}`);
     }
-    const childWidth = nextSignedWidth(xWidth, zWidth, candidate.k, candidate.operations);
-    let arithmeticGateCount = 0n;
-    let arithmeticOperationCount = 0;
-    let recursiveCallCount = 0;
-    for (const operation of candidate.operations) {
-      arithmeticGateCount += phaseArithmeticOpCost(childWidth, operation);
-      if (operation[0] === "phaseProduct") recursiveCallCount += 1;
-      else arithmeticOperationCount += 1;
+    return costs;
+  }
+
+  function plannerFor(costs) {
+    function phaseArithmeticOpCost(workingWidth, operation) {
+      const name = operation[0];
+      if (name === "shiftL" || name === "shiftR" || name === "phaseProduct") return 0n;
+      if (name === "negate") return 2n * costs.negate(workingWidth);
+      if (name === "addScaled") return 2n * costs.rippleAdder(workingWidth);
+      throw new RangeError(`unknown operation: ${name}`);
     }
-    return {
-      childWidth,
-      arithmeticGateCount,
-      arithmeticOperationCount,
-      recursiveCallCount,
-    };
-  }
 
-  function basePlan(width) {
-    return {
-      width,
-      gateCount: directSignedPhaseProductGateCount(width, width),
-      recursionHeight: 0,
-      totalRecursiveCallCount: 0n,
-      totalArithmeticOperationCount: 0n,
-      choice: null,
-      childPlan: null,
-    };
-  }
-
-  function stepPlan(width, candidate, analysis, child) {
-    const calls = BigInt(analysis.recursiveCallCount);
-    return {
-      width,
-      gateCount: analysis.arithmeticGateCount + calls * child.gateCount,
-      recursionHeight: child.recursionHeight + 1,
-      totalRecursiveCallCount: calls * (child.totalRecursiveCallCount + 1n),
-      totalArithmeticOperationCount:
-        BigInt(analysis.arithmeticOperationCount) +
-        calls * child.totalArithmeticOperationCount,
-      choice: {
-        policyId: candidate.policyId,
-        k: candidate.k,
-        childWidth: analysis.childWidth,
-        localArithmeticGateCount: analysis.arithmeticGateCount,
-        localArithmeticOperationCount: analysis.arithmeticOperationCount,
-        recursiveCallCount: analysis.recursiveCallCount,
-      },
-      childPlan: child,
-    };
-  }
-
-  function lowerGateCount(candidate, current) {
-    return candidate.gateCount < current.gateCount ? candidate : current;
-  }
-
-  function chooseAtWidth(candidates, plans, width) {
-    let current = basePlan(width);
-    for (const candidate of candidates) {
-      const analysis = analyzeProgram(width, width, candidate);
-      if (analysis.childWidth < width && plans[analysis.childWidth] !== undefined) {
-        current = lowerGateCount(
-          stepPlan(width, candidate, analysis, plans[analysis.childWidth]),
-          current,
-        );
+    function analyzeProgram(xWidth, zWidth, candidate) {
+      requireK(candidate.k);
+      if (typeof candidate.policyId !== "string" || !candidate.policyId) {
+        throw new TypeError("candidate policyId must be a nonempty string.");
       }
+      const childWidth = nextSignedWidth(xWidth, zWidth, candidate.k, candidate.operations);
+      let arithmeticGateCount = 0n;
+      let arithmeticOperationCount = 0;
+      let recursiveCallCount = 0;
+      for (const operation of candidate.operations) {
+        arithmeticGateCount += phaseArithmeticOpCost(childWidth, operation);
+        if (operation[0] === "phaseProduct") recursiveCallCount += 1;
+        else arithmeticOperationCount += 1;
+      }
+      arithmeticGateCount +=
+        costs.allocation(xWidth, zWidth, candidate.k, childWidth);
+      return {
+        childWidth,
+        arithmeticGateCount,
+        arithmeticOperationCount,
+        recursiveCallCount,
+      };
     }
-    return current;
-  }
 
-  // Readable dense reference retained for bounded equivalence tests.
-  function buildPlanTable(candidates, maxWidth) {
-    requireNatural(maxWidth, "maxWidth");
-    if (!Array.isArray(candidates)) throw new TypeError("candidates must be an array.");
-    const plans = [];
-    for (let width = 0; width <= maxWidth; width += 1) {
-      plans.push(chooseAtWidth(candidates, plans, width));
+    function basePlan(width) {
+      return {
+        width,
+        gateCount: directSignedPhaseProductGateCount(width, width),
+        recursionHeight: 0,
+        totalRecursiveCallCount: 0n,
+        totalArithmeticOperationCount: 0n,
+        choice: null,
+        childPlan: null,
+      };
     }
-    return plans;
-  }
 
-  // Production planner: memoize only widths reachable from the requested roots.
-  function bestPlans(candidates, widths) {
-    if (!Array.isArray(candidates)) throw new TypeError("candidates must be an array.");
-    if (!Array.isArray(widths)) throw new TypeError("widths must be an array.");
-    widths.forEach(width => requireNatural(width, "width"));
-    const memo = new Map();
+    function stepPlan(width, candidate, analysis, child) {
+      const calls = BigInt(analysis.recursiveCallCount);
+      return {
+        width,
+        gateCount: analysis.arithmeticGateCount + calls * child.gateCount,
+        recursionHeight: child.recursionHeight + 1,
+        totalRecursiveCallCount: calls * (child.totalRecursiveCallCount + 1n),
+        totalArithmeticOperationCount:
+          BigInt(analysis.arithmeticOperationCount) +
+          calls * child.totalArithmeticOperationCount,
+        choice: {
+          policyId: candidate.policyId,
+          k: candidate.k,
+          childWidth: analysis.childWidth,
+          localArithmeticGateCount: analysis.arithmeticGateCount,
+          localArithmeticOperationCount: analysis.arithmeticOperationCount,
+          recursiveCallCount: analysis.recursiveCallCount,
+        },
+        childPlan: child,
+      };
+    }
 
-    function solve(width) {
-      if (memo.has(width)) return memo.get(width);
+    function lowerGateCount(candidate, current) {
+      return candidate.gateCount < current.gateCount ? candidate : current;
+    }
+
+    function chooseAtWidth(candidates, plans, width) {
       let current = basePlan(width);
       for (const candidate of candidates) {
         const analysis = analyzeProgram(width, width, candidate);
-        if (analysis.childWidth < width) {
+        if (analysis.childWidth < width && plans[analysis.childWidth] !== undefined) {
           current = lowerGateCount(
-            stepPlan(width, candidate, analysis, solve(analysis.childWidth)),
+            stepPlan(width, candidate, analysis, plans[analysis.childWidth]),
             current,
           );
         }
       }
-      memo.set(width, current);
       return current;
     }
 
-    return widths.map(solve);
+    // Readable dense reference retained for bounded equivalence tests.
+    function buildPlanTable(candidates, maxWidth) {
+      requireNatural(maxWidth, "maxWidth");
+      if (!Array.isArray(candidates)) throw new TypeError("candidates must be an array.");
+      const plans = [];
+      for (let width = 0; width <= maxWidth; width += 1) {
+        plans.push(chooseAtWidth(candidates, plans, width));
+      }
+      return plans;
+    }
+
+    // Production planner: memoize only widths reachable from the requested roots.
+    function bestPlans(candidates, widths) {
+      if (!Array.isArray(candidates)) throw new TypeError("candidates must be an array.");
+      if (!Array.isArray(widths)) throw new TypeError("widths must be an array.");
+      widths.forEach(width => requireNatural(width, "width"));
+      const memo = new Map();
+
+      function solve(width) {
+        if (memo.has(width)) return memo.get(width);
+        let current = basePlan(width);
+        for (const candidate of candidates) {
+          const analysis = analyzeProgram(width, width, candidate);
+          if (analysis.childWidth < width) {
+            current = lowerGateCount(
+              stepPlan(width, candidate, analysis, solve(analysis.childWidth)),
+              current,
+            );
+          }
+        }
+        memo.set(width, current);
+        return current;
+      }
+
+      return widths.map(solve);
+    }
+
+    function bestPlan(candidates, width) {
+      return bestPlans(candidates, [width])[0];
+    }
+
+    return {
+      modelVersion: costs.modelVersion,
+      phaseArithmeticOpCost,
+      analyzeProgram,
+      basePlan,
+      stepPlan,
+      lowerGateCount,
+      chooseAtWidth,
+      buildPlanTable,
+      bestPlans,
+      bestPlan,
+    };
   }
 
-  function bestPlan(candidates, width) {
-    return bestPlans(candidates, [width])[0];
-  }
+  const PLANNERS = Object.fromEntries(
+    Object.keys(COST_MODELS).map(version => [version, plannerFor(COST_MODELS[version])]),
+  );
+
+  const defaultPlanner = PLANNERS["forshor-phase-product-gates-v3"];
+  const modelVersion = defaultPlanner.modelVersion;
+  const {
+    phaseArithmeticOpCost,
+    analyzeProgram,
+    basePlan,
+    stepPlan,
+    lowerGateCount,
+    chooseAtWidth,
+    buildPlanTable,
+    bestPlans,
+    bestPlan,
+  } = defaultPlanner;
 
   function phaseProductResultDescriptors(data) {
     if (!data || !Array.isArray(data.policies)) {
@@ -439,9 +570,9 @@
     };
   }
 
-  function compactPlan(plan) {
+  function compactPlan(plan, version = modelVersion) {
     return {
-      model_version: modelVersion,
+      model_version: version,
       objective,
       width: plan.width,
       gate_count: decimal(plan.gateCount),
@@ -452,9 +583,28 @@
     };
   }
 
+  function selectModel(version) {
+    const costs = costsFor(version);
+    const planner = PLANNERS[costs.modelVersion];
+    return Object.freeze(Object.assign({}, planner, {
+      objective,
+      planLevels,
+      compactPlan: plan => compactPlan(plan, costs.modelVersion),
+    }));
+  }
+
   return Object.freeze({
     modelVersion,
     objective,
+    modelVersions: Object.freeze(Object.keys(COST_MODELS)),
+    selectModel,
+    truncatedSub,
+    rippleAdderGateBound,
+    negateGateBound,
+    cuccaroModAddGateCount,
+    cuccaroNegateGateCount,
+    topLimbWidth,
+    signExtensionAllocationGateCount,
     phaseLimbWidthOfWidth,
     phaseLimbWidth,
     phaseSplitLogicalWidth,
@@ -463,8 +613,6 @@
     scanNeededWidths,
     maximumNeededWidth,
     nextSignedWidth,
-    rippleAdderGateBound,
-    negateGateBound,
     directSignedPhaseProductGateCount,
     phaseArithmeticOpCost,
     analyzeProgram,

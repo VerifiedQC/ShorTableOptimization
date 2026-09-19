@@ -45,6 +45,9 @@ submissions.
 
 ## Checks
 
+- Run `lake exe cache get` once on a fresh checkout, before the first build:
+  Mathlib is a dependency of the recursive cost model, and compiling it from
+  source instead of fetching it takes hours.
 - Run `lake build TableGeneration` after Lean changes.
 - Run `node scripts/test_recursive_cost.js` after recursive planner or website
   calculator changes.

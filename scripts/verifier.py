@@ -126,10 +126,17 @@ def utc_now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+# Keep every subprocess timeout strictly below the CI job's wall clock
+# (45 minutes for the submission workflow). If a subprocess outlives the job,
+# the run dies as an opaque cancellation instead of a verifier error naming the
+# step that hung, which is much harder for a submitter to act on.
+DEFAULT_CMD_TIMEOUT = 1800
+
+
 def run_cmd(
     args: list[str],
     cwd: Path,
-    timeout: int = 1200,
+    timeout: int = DEFAULT_CMD_TIMEOUT,
     env: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     try:

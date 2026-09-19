@@ -18,7 +18,7 @@ jobs:
   verify:
     name: Verifier
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     permissions:
       contents: read
 
@@ -65,6 +65,42 @@ jobs:
           curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
             | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      # Restore the build cache produced by `lean-build-cache.yml` on `main`.
+      #
+      # READ ONLY, deliberately. This job compiles untrusted fork-supplied Lean,
+      # so it must never write a cache another run could restore. Only the
+      # trusted `main` workflow writes.
+      #
+      # Restoring a `main` build into the submission tree is sound because the
+      # preflight step above has already run, and it rejects any diff outside
+      # `TableGeneration/Submission/`. Everything the cache covers is therefore
+      # byte-identical to the base branch, and Lake's traces force a rebuild of
+      # exactly the submission modules, which is the work we actually want.
+      #
+      # The key is computed from the VERIFIER checkout (the trusted base), not
+      # the submission checkout, so a fork cannot steer which cache it gets.
+      - name: Restore Lean dependency cache
+        uses: actions/cache/restore@v4
+        with:
+          path: submission/.lake/packages
+          key: lake-packages-${{ runner.os }}-${{ hashFiles('verifier/lake-manifest.json', 'verifier/lean-toolchain') }}
+          restore-keys: |
+            lake-packages-${{ runner.os }}-
+
+      # A cache miss on the dependency tree would otherwise mean compiling
+      # Mathlib from source, which no CI budget survives.
+      - name: Fetch Mathlib oleans
+        working-directory: submission
+        run: lake exe cache get
+
+      - name: Restore Lean build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: submission/.lake/build
+          key: lake-build-${{ runner.os }}-${{ hashFiles('verifier/lean-toolchain', 'verifier/lakefile.lean', 'verifier/TableGeneration/**/*.lean') }}
+          restore-keys: |
+            lake-build-${{ runner.os }}-
 
       - name: Run verifier
         working-directory: submission
