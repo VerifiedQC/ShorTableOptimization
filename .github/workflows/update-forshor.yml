@@ -7,11 +7,18 @@ name: Update ForShor
 #
 # It pushes to `main` without review, which is safe only because it refuses to
 # push unless the planner still reports the same totals. Those five numbers are
-# quoted in the write-up, and they are the one thing a dependency bump can move
-# silently: `test_recursive_cost.js` compares Lean against JavaScript, and both
-# derive from the same Lean model, so they drift together and stay equal. If the
-# totals move, the job fails and leaves `main` alone -- that bump is a decision,
-# not a chore.
+# the Lean catalogue's: `bestKnownCandidates` is one promoted program per `k`,
+# so the plan is over the fifteen champions. They are the one thing a dependency
+# bump can move silently here. `test_recursive_cost.js` compares Lean against
+# JavaScript on that same candidate set, and both derive from the same Lean
+# model, so they drift together and stay equal. If the totals move, the job
+# fails and leaves `main` alone -- that bump is a decision, not a chore.
+#
+# What this does NOT cover: the write-up's appendix plans over the full archive
+# rather than the champions, which differs at 1024 and 4096 bits. That planner
+# is `archivedPhaseProductCandidates` in `leaderboard/site/recursive-cost.js`
+# and reads archive data this repo does not carry, so it cannot run here. Check
+# those two figures by hand when the cost model changes.
 
 on:
   schedule:
@@ -72,8 +79,9 @@ jobs:
         if: steps.update.outputs.changed == 'true'
         run: node scripts/test_recursive_cost.js
 
-      # The gate. These are the figures the write-up quotes; if the companion
-      # changed the cost model they move, and this bump stops being routine.
+      # The gate. These are the champions-only totals, which is what the
+      # shipped Lean catalogue reproduces; if the companion changed the cost
+      # model they move, and this bump stops being routine.
       - name: Planner totals unchanged
         if: steps.update.outputs.changed == 'true'
         run: |
