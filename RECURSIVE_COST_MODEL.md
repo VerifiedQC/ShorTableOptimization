@@ -94,13 +94,40 @@ continuously is in-repo and needs no checkout -- the oracle's `--width-scan` and
 planner's array width scan and its closed-form allocation charge against the
 integrated copies.
 
-ForShor is deliberately *not* a Lake dependency. Its cost-model files reach
-`Mathlib.Tactic`, and this repository stays dependency-free so that the
-submission axiom audit remains `propext`-only and a submitter's first build
-stays seconds rather than gigabytes. Two things could not be integrated
-mathlib-free and remain this repository's own formulations, marked as such in
-`Model.lean`: the width scan's `commonNeededWidth` (ForShor uses
-`Finset.univ.sup`) and `updateWidth` (ForShor uses `Function.update`).
+ForShor is a Lake dependency, declared in `lakefile.lean` as the package
+`Fast_multiplication` and tracking its `main` branch. Mathlib is required first
+so that this repository's pin governs: ForShor's own Mathlib requirement carries
+no revision, and Lake resolves a package name once.
+
+Tracking a branch does not make builds float. `lake-manifest.json` records a
+resolved commit and is committed, and no workflow runs `lake update`, so CI and
+a fresh clone both build that exact revision. Updating is deliberate:
+
+    lake update Fast_multiplication
+
+After any update, check that the planner still reports the same totals, because
+these are the figures the write-up quotes:
+
+    lake env lean --run scripts/tests/RecursiveCostOracle.lean \
+      --model=v3 --best-known 1024 2048 4096 8192 16384
+
+    1024   1798788   4    280    208
+    2048   5009071   4    594    502
+    4096   12860900  4    1196   1157
+    8192   32277696  5    4693   3692
+    16384  79971062  5    10115  8689
+
+The Lean/JS differential (`node scripts/test_recursive_cost.js`) will not catch
+a change here: both sides derive from the same Lean model, so they move
+together. Only the totals above show that the model itself moved.
+
+The dependency is confined to `TableGeneration/RecursiveCost/**`, enforced by
+`scripts/check_mathlib_confinement.py`, which is what keeps the submission axiom
+audit reporting `propext` alone.
+
+The integrated slice under `TableGeneration/RecursiveCost/ForShor/` is still what
+the cost model uses. Replacing it with imports from the dependency is deferred
+until ForShor's reorganisation settles and its exposed surface is final.
 
 What is integrated is the *circuit-level* model. ForShor's own
 recurrence-level costing, `phaseArithmeticOpCost` in
