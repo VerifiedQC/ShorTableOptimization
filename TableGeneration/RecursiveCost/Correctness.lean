@@ -3,6 +3,10 @@ import TableGeneration.RecursiveCost.Planner
 -- imports it, and without this nothing else does, so `lake build` would not
 -- produce its olean and the oracle would fail on a clean checkout.
 import TableGeneration.RecursiveCost.ForShor.AllocationAgreement
+-- Same reason: the companion-soundness bridge is imported by nothing else, and
+-- `lean_lib TableGeneration` builds only what `TableGeneration.lean` reaches,
+-- so without this line `lake build` would silently stop checking it.
+import TableGeneration.RecursiveCost.CompanionSoundness
 
 namespace TableGeneration.RecursiveCost
 

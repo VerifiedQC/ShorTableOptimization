@@ -1,0 +1,115 @@
+name: Update ForShor
+
+# Follows the companion's `main` branch. `lakefile.lean` tracks `main`, but
+# `lake-manifest.json` pins a resolved commit and is what every build reads, so
+# the dependency only advances when something runs `lake update`. That is this
+# workflow.
+#
+# It pushes to `main` without review, which is safe only because it refuses to
+# push unless the planner still reports the same totals. Those five numbers are
+# quoted in the write-up, and they are the one thing a dependency bump can move
+# silently: `test_recursive_cost.js` compares Lean against JavaScript, and both
+# derive from the same Lean model, so they drift together and stay equal. If the
+# totals move, the job fails and leaves `main` alone -- that bump is a decision,
+# not a chore.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-forshor
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Install Lean
+        run: |
+          set -euo pipefail
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Resolve the companion's current main
+        id: update
+        run: |
+          set -euo pipefail
+          before=$(jq -r '.packages[] | select(.name=="Fast_multiplication") | .rev' lake-manifest.json)
+          lake update Fast_multiplication
+          after=$(jq -r '.packages[] | select(.name=="Fast_multiplication") | .rev' lake-manifest.json)
+          echo "before=$before" >> "$GITHUB_OUTPUT"
+          echo "after=$after" >> "$GITHUB_OUTPUT"
+          if [ "$before" = "$after" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Already at $before; nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "$before -> $after"
+          fi
+
+      - name: Fetch Mathlib oleans
+        if: steps.update.outputs.changed == 'true'
+        run: lake exe cache get
+
+      - name: Build
+        if: steps.update.outputs.changed == 'true'
+        run: lake build
+
+      - name: Lean/JavaScript differential
+        if: steps.update.outputs.changed == 'true'
+        run: node scripts/test_recursive_cost.js
+
+      # The gate. These are the figures the write-up quotes; if the companion
+      # changed the cost model they move, and this bump stops being routine.
+      - name: Planner totals unchanged
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          expected=$(cat <<'TOTALS'
+          1024	1798788
+          2048	5009071
+          4096	12860900
+          8192	32277696
+          16384	79971062
+          TOTALS
+          )
+          actual=$(lake env lean --run scripts/tests/RecursiveCostOracle.lean \
+            --model=v3 --best-known 1024 2048 4096 8192 16384 | cut -f1,2)
+          if [ "$(echo "$expected" | sed 's/^ *//')" != "$actual" ]; then
+            echo "::error::Planner totals changed. Not pushing."
+            diff <(echo "$expected" | sed 's/^ *//') <(echo "$actual") || true
+            exit 1
+          fi
+          echo "Totals unchanged."
+
+      - name: Commit
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name  "Jai Patel"
+          git config user.email "mitjaipp@gmail.com"
+          git add lake-manifest.json
+          # `[skip ci]` because `table-generation-promotion` and
+          # `sync-submission-template` both fire on any push to `main`, and
+          # neither has anything to do with a manifest bump. This job has
+          # already built, run the differential and checked the totals, so
+          # nothing downstream would add a check that has not been made.
+          git commit -m "Update ForShor to ${{ steps.update.outputs.after }} [skip ci]"
+          # The build takes about half an hour, so `main` may have moved since
+          # checkout. Only `lake-manifest.json` is touched, so a rebase is safe;
+          # the ruleset forbids non-fast-forward pushes, which this avoids.
+          git pull --rebase origin main
+          git push origin HEAD:main
