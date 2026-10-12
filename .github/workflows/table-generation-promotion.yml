@@ -53,17 +53,57 @@ jobs:
             | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
+      # `lean-build-cache.yml` saves these from the repository root. A cache's
+      # version is a hash of its `path`, so an entry saved at `.lake/packages`
+      # cannot be restored at `source/.lake/packages`: the key matches, the
+      # version does not, and the restore reports a miss. Restore at the saved
+      # path, then move the tree into the checkout.
       - name: Restore Lean dependency cache
         uses: actions/cache/restore@v4
         with:
-          path: source/.lake/packages
+          path: .lake/packages
           key: lake-packages-${{ runner.os }}-${{ hashFiles('source/lake-manifest.json', 'source/lean-toolchain') }}
           restore-keys: |
             lake-packages-${{ runner.os }}-
 
+      - name: Move restored dependencies into the checkout
+        run: |
+          set -euo pipefail
+          if [ -d .lake/packages ]; then
+            mkdir -p source/.lake
+            rm -rf source/.lake/packages
+            mv .lake/packages source/.lake/packages
+            echo "restored dependency tree into source/.lake/packages"
+          else
+            echo "no dependency cache restored"
+          fi
+
       - name: Fetch Mathlib oleans
         working-directory: source
         run: lake exe cache get
+
+      # Without this the job recompiles every `TableGeneration` module, which is
+      # most of its runtime. Lake re-checks module hashes, so a stale entry is
+      # rebuilt rather than trusted. Same root-path treatment as above.
+      - name: Restore Lean build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .lake/build
+          key: lake-build-${{ runner.os }}-${{ hashFiles('source/lean-toolchain', 'source/lakefile.lean', 'source/TableGeneration/**/*.lean') }}
+          restore-keys: |
+            lake-build-${{ runner.os }}-
+
+      - name: Move restored build into the checkout
+        run: |
+          set -euo pipefail
+          if [ -d .lake/build ]; then
+            mkdir -p source/.lake
+            rm -rf source/.lake/build
+            mv .lake/build source/.lake/build
+            echo "restored build tree into source/.lake/build"
+          else
+            echo "no build cache restored"
+          fi
 
       # The submission axiom audit is propext-only because nothing on the
       # submission path imports Mathlib. Nothing in Lean enforces that.
