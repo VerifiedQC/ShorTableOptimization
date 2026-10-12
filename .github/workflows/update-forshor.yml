@@ -107,15 +107,15 @@ jobs:
         if: steps.update.outputs.changed == 'true'
         run: |
           set -euo pipefail
-          git config user.name  "Jai Patel"
-          git config user.email "mitjaipp@gmail.com"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lake-manifest.json
           # `[skip ci]` because `table-generation-promotion` and
           # `sync-submission-template` both fire on any push to `main`, and
           # neither has anything to do with a manifest bump. This job has
           # already built, run the differential and checked the totals, so
           # nothing downstream would add a check that has not been made.
-          git commit -m "Update ForShor to ${{ steps.update.outputs.after }} [skip ci]"
+          git commit -m "Update ForShor to $(git -C .lake/packages/Fast_multiplication rev-parse --short HEAD) [skip ci]"
           # The build takes about half an hour, so `main` may have moved since
           # checkout. Only `lake-manifest.json` is touched, so a rebase is safe;
           # the ruleset forbids non-fast-forward pushes, which this avoids.
