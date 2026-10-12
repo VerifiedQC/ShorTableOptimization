@@ -1,4 +1,5 @@
 import TableGeneration.ContractSoundness
+import TableGeneration.RecursiveCost.CompanionTransport
 import FastMultiplication.ShorVerification.Implementation.PhaseProduct.Math.Table_Generation.Core.Coverage
 
 /-!
@@ -25,7 +26,9 @@ untouched.
 algebra are the same definitions on both sides, and `abbrev` is reducible, so
 states pass between them with no conversion at all. `Point` and `valid_ops`
 have identical shapes but are nominally distinct inductives, so they need the
-transports `toCompanionPoint` / `toCompanionOp` defined below.
+transports `toCompanionPoint` / `toCompanionOp`. Those live in
+`CompanionTransport.lean`, which is the single bridge between the two operation
+languages; this file only opens it.
 
 The one place the two developments genuinely differ is `Register.shiftR?`: this
 repository tests divisibility with a `List.finRange` fold so the check stays
@@ -37,29 +40,8 @@ and both recursions -- follows from that.
 
 namespace TableGeneration.RecursiveCost.CompanionSoundness
 
-/-! ## Transporting the syntax
-
-`Point` and `valid_ops` are the only types that need converting; `State` and
-`Register` are literally the companion's. -/
-
-/-- This repository's `Point` as the companion's. -/
-def toCompanionPoint : TableGeneration.Operations.Point → _root_.Operations.Point
-  | .int z => .int z
-  | .frac m => .frac m
-
-/-- This repository's `valid_ops` as the companion's: the five constructors
-correspond one for one. -/
-def toCompanionOp {k : Nat} :
-    TableGeneration.Operations.valid_ops k → _root_.Operations.valid_ops k
-  | .shiftL i n => .shiftL i n
-  | .shiftR i n => .shiftR i n
-  | .negate i => .negate i
-  | .addScaled dst src negSrc shift => .addScaled dst src negSrc shift
-  | .phaseProduct i => .phaseProduct i
-
-/-- A program transported operation by operation. -/
-def toCompanionProg {k : Nat} (ops : TableGeneration.Prog k) : _root_.Prog k :=
-  ops.map toCompanionOp
+open TableGeneration.RecursiveCost.Companion
+  (toCompanionPoint toCompanionOp toCompanionProg)
 
 /-! ## The leaf conditions agree
 

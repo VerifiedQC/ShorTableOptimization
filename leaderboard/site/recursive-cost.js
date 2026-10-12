@@ -157,9 +157,11 @@
   // rippleAdderGateBound(w) = 9w + 2 (a bound), free sign extension, and no
   // allocation bookkeeping.
   //
-  // v3 transcribes the operative model at companion commit d5a165b, namely
-  // shorGateCostModel = shorGateResourceModel.toCostModel in
-  // Framework/Gatecount/ResourceModel.lean:
+  // v3 transcribes the operative model the Lean side reads from the
+  // Fast_multiplication dependency, namely shorGateCostModel =
+  // shorGateResourceModel.toCostModel in
+  // Framework/Gatecount/ResourceModel.lean, at the revision lake-manifest.json
+  // pins:
   //   * addScaled is the exact Cuccaro modulo adder,
   //     (2w - 6) + (5w - 7) + (2w - 3) = 9w - 16 for w >= 3;
   //   * negate is complement + constant-one register + that adder,
@@ -220,7 +222,8 @@
     return 5n * BigInt(xWidth) * BigInt(zWidth);
   }
 
-  // One model: the companion's operative shorGateCostModel at commit d5a165b.
+  // One model: the companion's operative shorGateCostModel, at the revision
+  // lake-manifest.json pins.
   //
   // Two models used to live here. "v2" mirrored the companion's
   // phaseProductCostModel -- bound arithmetic, free sign extension -- which the

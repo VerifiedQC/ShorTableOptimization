@@ -1,4 +1,4 @@
-import TableGeneration.RecursiveCost.ForShor.Allocation
+import TableGeneration.RecursiveCost.CompanionAllocation
 import TableGeneration.RecursiveCost.Model
 
 /-!
@@ -8,18 +8,20 @@ The planner charges a closed form for a node's sign-extension bookkeeping
 (`signExtensionAllocationGateCount` in `Model.lean`) rather than running the
 companion's allocation compiler, which would mean building `k` concrete
 `ExtReg`s per node on a hot path. That closed form is this project's, derived by
-reading `allocChunkGate`: only the top limb of each operand carries a sign, so
-the other `k - 1` limbs zero-extend for free, and each top limb is extended once
-and unwound once.
+reading `Shor.allocChunkGate`: only the top limb of each operand carries a sign,
+so the other `k - 1` limbs zero-extend for free, and each top limb is extended
+once and unwound once.
 
 This file builds the layout the companion's compiler would receive at a balanced
 node, so the derivation can be checked against
-`bookkeepingGateCost (compileSignedAllocations ...)` rather than trusted. The
-check itself is executable and lives in the test oracle; see `--allocation` in
-`scripts/tests/RecursiveCostOracle.lean`.
+`Shor.bookkeepingGateCost (Shor.compileSignedAllocations ...)` rather than
+trusted. The check itself is executable and lives in the test oracle; see
+`--allocation` in `scripts/tests/RecursiveCostOracle.lean`.
 -/
 
-namespace TableGeneration.RecursiveCost.ForShor
+namespace TableGeneration.RecursiveCost.Companion
+
+open Shor
 
 /-- A register holding `width` active qubits at `offset`, with `reserve` further
 qubits held for growth. Offsets keep distinct slots on distinct qubits. -/
@@ -53,7 +55,7 @@ splitting into `k` limbs, each holding enough reserve to reach `childWidth`.
 Slots are laid out at strictly increasing offsets, so distinct limbs and the two
 operands never share a qubit. -/
 def canonicalLayoutState (w k childWidth : Nat) : LayoutState k :=
-  let limb := phaseLimbWidth (canonicalExtReg w) (canonicalExtReg w) k
+  let limb := Shor.phaseLimbWidth (canonicalExtReg w) (canonicalExtReg w) k
   let stride := childWidth + w + 1
   { xslot := fun i =>
       slotExtReg (i.val * stride)
@@ -72,8 +74,6 @@ def canonicalAllocationCost (w k childWidth : Nat) : Nat :=
   bookkeepingGateCost (compileSignedAllocations k src dst) +
     bookkeepingGateCost (compileSignedDeallocations k src dst)
 
-
-open TableGeneration.RecursiveCost in
 /-- Growing a canonical slot to `target` extends it by exactly the shortfall. -/
 theorem extraDelta_growExtRegTo (off wdt reserve target : Nat)
     (h : target - wdt ≤ reserve) :
@@ -95,21 +95,21 @@ allocation compiler emits for the same node.
 
 This is the fact `signExtensionAllocationGateCount` was derived by hand from.
 With it, the planner's per-node bookkeeping charge is no longer a reading of
-`allocChunkGate` but a consequence of it.
+`Shor.allocChunkGate` but a consequence of it.
 -/
 theorem canonicalAllocationCost_eq (w m childWidth : Nat) :
     canonicalAllocationCost w (m + 1) childWidth
       = signExtensionAllocationGateCount w w (m + 1) childWidth := by
-  have hfit : childWidth - (w - m * phaseLimbWidthOfWidth w (m + 1)) ≤ childWidth :=
+  have hfit : childWidth - (w - m * Shor.phaseLimbWidthOfWidth w (m + 1)) ≤ childWidth :=
     Nat.sub_le _ _
   simp only [canonicalAllocationCost, canonicalLayoutState,
     bookkeepingGateCost_compileSignedAllocations,
     bookkeepingGateCost_compileSignedDeallocations,
-    phaseLimbWidth, canonicalExtReg_width, phaseSplitLogicalWidth,
+    Shor.phaseLimbWidth, canonicalExtReg_width, phaseSplitLogicalWidth,
     isTopChunk, Nat.min_self, if_true,
     extraDelta_growExtRegTo _ _ _ _ hfit,
     signExtensionAllocationGateCount, RecursiveCost.phaseLimbWidth,
     topLimbWidth, Nat.add_sub_cancel]
   omega
 
-end TableGeneration.RecursiveCost.ForShor
+end TableGeneration.RecursiveCost.Companion

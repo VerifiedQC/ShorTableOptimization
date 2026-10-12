@@ -2,11 +2,17 @@ import TableGeneration.RecursiveCost.Planner
 -- Keeps the allocation agreement in the library's build graph. The test oracle
 -- imports it, and without this nothing else does, so `lake build` would not
 -- produce its olean and the oracle would fail on a clean checkout.
-import TableGeneration.RecursiveCost.ForShor.AllocationAgreement
+import TableGeneration.RecursiveCost.AllocationAgreement
 -- Same reason: the companion-soundness bridge is imported by nothing else, and
 -- `lean_lib TableGeneration` builds only what `TableGeneration.lean` reaches,
 -- so without this line `lake build` would silently stop checking it.
 import TableGeneration.RecursiveCost.CompanionSoundness
+-- Same reason again, for the route to the companion's recursive lowering. Only
+-- `scripts/tests/ChampionGateCountDifferential.lean` imports it, and that test
+-- runs by hand rather than in CI, so this line is what keeps it typechecked and
+-- its olean present. It adds two companion modules to the build graph
+-- (`Emit.Lower.Registers`, `Emit.Lower.Decide`) and no proof obligations.
+import TableGeneration.RecursiveCost.ChampionLowering
 
 namespace TableGeneration.RecursiveCost
 
@@ -16,8 +22,8 @@ open Operations
 # Recursive-cost model invariants
 
 These lemmas cover the executable model's local accounting and deterministic
-minimum selection. They do not claim that ForShor's abstract gate model is a
-hardware resource estimate.
+minimum selection. They do not claim that the companion's abstract gate model is
+a hardware resource estimate.
 -/
 
 /-! The width scan is the companion's, so its slot-update lemmas are Mathlib's
@@ -25,8 +31,8 @@ hardware resource estimate.
 specific to this language needs restating. -/
 
 @[simp] theorem updateWidthState_phaseProduct {k : Nat}
-    (state : ForShor.WidthState k) (index : Fin k) :
-    ForShor.updateWidthState state (.phaseProduct index) = state := by
+    (state : Shor.WidthState k) (index : Fin k) :
+    Companion.updateWidthState state (.phaseProduct index) = state := by
   rfl
 
 @[simp] theorem phaseProgramOverhead_nil {k : Nat} (workingWidth : Nat) :

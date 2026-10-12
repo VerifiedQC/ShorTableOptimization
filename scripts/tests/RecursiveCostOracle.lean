@@ -1,5 +1,5 @@
 import TableGeneration.RecursiveCost.Correctness
-import TableGeneration.RecursiveCost.ForShor.AllocationAgreement
+import TableGeneration.RecursiveCost.AllocationAgreement
 
 namespace TableGeneration.RecursiveCost.TestOracle
 
@@ -95,7 +95,7 @@ def parseWidth (raw : String) : IO Nat :=
 
 /-- Accept and discard a `--model=<name>` selector.
 
-There is one cost model now -- the companion's operative `shorGateCostModel`.
+There is one cost model now -- the companion's operative `Shor.shorGateCostModel`.
 The flag is still accepted, and still rejects anything but the current version
 string, so an old invocation naming a retired model fails loudly instead of
 silently being reinterpreted. -/
@@ -149,8 +149,8 @@ def checkWidthScanAgreement (widths : List Nat) : IO Unit := do
     for candidate in bestKnownCandidates do
       let fast := nextBalancedSignedWidth width candidate.program
       let spec :=
-        ForShor.nextSignedWidth (ForShor.canonicalExtReg width)
-          (ForShor.canonicalExtReg width) candidate.program
+        Companion.nextSignedWidth (Companion.canonicalExtReg width)
+          (Companion.canonicalExtReg width) candidate.program
       if fast != spec then
         throw (IO.userError
           s!"width scan mismatch at width {width}, k={candidate.k}: \
@@ -170,7 +170,7 @@ def checkAllocationAgreement (ks widths : List Nat) : IO Unit := do
   for k in ks do
     for w in widths do
       for childWidth in [w / 2, w / 2 + 1, w - 1, w, w + 1] do
-        let companion := TableGeneration.RecursiveCost.ForShor.canonicalAllocationCost w k childWidth
+        let companion := TableGeneration.RecursiveCost.Companion.canonicalAllocationCost w k childWidth
         let closed := signExtensionAllocationGateCount w w k childWidth
         if companion != closed then
           throw (IO.userError

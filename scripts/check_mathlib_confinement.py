@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail if Mathlib is imported outside the recursive-cost model.
+"""Fail if Mathlib or the companion library is imported outside the recursive-cost model.
 
 The submission contract's guarantee is that `#print axioms` on
 `TableGeneration.generatedPoints_valid` and
@@ -27,8 +27,11 @@ from pathlib import Path
 # The only subtree allowed to import Mathlib.
 ALLOWED_PREFIX = Path("TableGeneration/RecursiveCost")
 
-# Batteries arrives with Mathlib and carries the same risk.
-IMPORT_RE = re.compile(r"^\s*import\s+(Mathlib|Batteries)\b", re.M)
+# Batteries arrives with Mathlib and carries the same risk. FastMultiplication
+# is the companion Lake dependency; it imports Mathlib itself, so an import of
+# it outside the allowed prefix would pull Mathlib into the submission path just
+# as directly, and would break the `propext`-only axiom audit.
+IMPORT_RE = re.compile(r"^\s*import\s+(Mathlib|Batteries|FastMultiplication)\b", re.M)
 
 SEARCH_ROOTS = [Path("TableGeneration"), Path("scripts")]
 

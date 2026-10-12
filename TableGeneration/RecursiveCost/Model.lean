@@ -1,5 +1,5 @@
 import TableGeneration.Metrics
-import TableGeneration.RecursiveCost.ForShor.Definitions
+import TableGeneration.RecursiveCost.CompanionCost
 
 namespace TableGeneration.RecursiveCost
 
@@ -8,45 +8,48 @@ open Operations
 /-!
 # Recursive PhaseProduct cost model
 
-The width scan and the gate costs are the companion's own definitions,
-integrated under `TableGeneration.RecursiveCost.ForShor` and pinned to
-companion commit `d5a165b`. This file adds only what the companion does not
-have: a `Nat`-indexed interface for the planner, an evaluation-oriented array
-scan, and the per-node analysis the recursive planner consumes.
+The width scan and the gate costs are the companion's own definitions, used
+directly from the `Fast_multiplication` Lake dependency. `CompanionCost.lean`
+supplies the `Nat`-indexed face of them and transports this repository's
+operation language into the companion's; this file adds only what the companion
+does not have at all: an evaluation-oriented array scan, and the per-node
+analysis the recursive planner consumes.
 
-There is one cost model, the companion's operative `shorGateCostModel`. An
+There is one cost model, the companion's operative `Shor.shorGateCostModel`. An
 earlier revision of this file also carried a `v2` model and a `4kW` variant;
 `v2` mirrored the companion's `phaseProductCostModel`, which was **deleted**
-upstream at `89c45ee`, and `4kW` was never a companion definition at all --
-only an inline bound inside its asymptotic proofs. Both are gone.
+upstream, and `4kW` was never a companion definition at all -- only an inline
+bound inside its asymptotic proofs. Both are gone.
 -/
 
 /-! ## Widths
 
 The companion indexes its scan by `ExtReg`; the planner is indexed by a bare
-`Nat` bit width. These are the `Nat`-facing forms, defined from the companion's.
+`Nat` bit width. These are the `Nat`-facing forms, defined from the companion's
+through `CompanionCost.lean`.
 -/
 
 /-- Lower-limb width for the top-heavy split, at bare widths. -/
 def phaseLimbWidth (xWidth zWidth k : Nat) : Nat :=
-  min (ForShor.phaseLimbWidthOfWidth xWidth k) (ForShor.phaseLimbWidthOfWidth zWidth k)
+  min (Shor.phaseLimbWidthOfWidth xWidth k) (Shor.phaseLimbWidthOfWidth zWidth k)
 
 @[simp] theorem phaseLimbWidth_eq_forshor (xWidth zWidth k : Nat) :
     phaseLimbWidth xWidth zWidth k
-      = ForShor.phaseLimbWidth (ForShor.canonicalExtReg xWidth)
-          (ForShor.canonicalExtReg zWidth) k := by
-  rw [phaseLimbWidth, ForShor.phaseLimbWidth,
-      ForShor.canonicalExtReg_width, ForShor.canonicalExtReg_width]
+      = Shor.phaseLimbWidth (Companion.canonicalExtReg xWidth)
+          (Companion.canonicalExtReg zWidth) k := by
+  rw [phaseLimbWidth, Shor.phaseLimbWidth,
+      Companion.canonicalExtReg_width, Companion.canonicalExtReg_width]
 
 /-- Width of the recursively compiled PhaseProduct children, at bare widths.
 
-This is the companion's `nextSignedWidth` applied to canonical registers of the
-requested widths, which is sound because the scan reads only `ExtReg.width`.
+This is the companion's `Shor.nextSignedWidth` applied to canonical registers of
+the requested widths, which is sound because the scan reads only
+`ExtReg.width`.
 It is the specification; `nextBalancedSignedWidth` below is the form the planner
 evaluates. -/
 def nextSignedWidth {k : Nat} (xWidth zWidth : Nat) (ops : Prog k) : Nat :=
-  ForShor.nextSignedWidth (ForShor.canonicalExtReg xWidth)
-    (ForShor.canonicalExtReg zWidth) ops
+  Companion.nextSignedWidth (Companion.canonicalExtReg xWidth)
+    (Companion.canonicalExtReg zWidth) ops
 
 /-!
 The website profile uses balanced operands. The following array scan is an
@@ -58,13 +61,13 @@ long chain of function updates when large promoted programs are interpreted.
 def initBalancedWidths (width k : Nat) : Array Nat :=
   let commonWidth := phaseLimbWidth width width k
   Array.ofFn (fun i : Fin k =>
-    ForShor.phaseSplitLogicalWidth width commonWidth k i)
+    Shor.phaseSplitLogicalWidth width commonWidth k i)
 
 /-- Safe lookup for an index originating from the same `k` as the array. -/
 def balancedWidthAt {k : Nat} (widths : Array Nat) (index : Fin k) : Nat :=
   widths[index.val]?.getD 0
 
-/-- Array form of one balanced ForShor width transition. -/
+/-- Array form of one balanced companion width transition. -/
 def updateBalancedWidths {k : Nat}
     (widths : Array Nat) : valid_ops k → Array Nat
   | .shiftL index amount =>
@@ -111,34 +114,34 @@ written out, so the familiar closed forms are theorems.
 /-- Cuccaro modulo-`2^w` ripple-carry adder total, from the companion's
 `cuccaroModAddResources`. Equals `9w - 16` for `w >= 3`. -/
 def cuccaroModAddGateCount (width : Nat) : Nat :=
-  (ForShor.cuccaroModAddResources width).totalGates
+  (Shor.cuccaroModAddResources width).totalGates
 
 /-- Cuccaro-based negation total, from the companion's `negateResources`.
 Equals `10w - 14` for `w >= 3`. -/
 def cuccaroNegateGateCount (width : Nat) : Nat :=
-  (ForShor.negateResourcesAtWidth width).totalGates
+  (Companion.negateResourcesAtWidth width).totalGates
 
 theorem cuccaroModAddGateCount_eq (width : Nat) (hw : 3 <= width) :
     cuccaroModAddGateCount width = 9 * width - 16 :=
-  ForShor.cuccaroModAddResources_totalGates width hw
+  Companion.cuccaroModAddResources_totalGates width hw
 
 theorem cuccaroNegateGateCount_eq (width : Nat) (hw : 3 <= width) :
     cuccaroNegateGateCount width = 10 * width - 14 :=
-  ForShor.negateResourcesAtWidth_totalGates width hw
+  Companion.negateResourcesAtWidth_totalGates width hw
 
 /-- The planner's negation cost is what the operative model charges any register
 of that width. -/
-theorem cuccaroNegateGateCount_eq_model (r : ForShor.ExtReg) :
-    (ForShor.negateResources r).totalGates
-      = cuccaroNegateGateCount (ForShor.ExtReg.width r) := rfl
+theorem cuccaroNegateGateCount_eq_model (r : Shor.ExtReg) :
+    (Shor.negateResources r).totalGates
+      = cuccaroNegateGateCount (Shor.ExtReg.width r) := rfl
 
 /-- The planner's adder cost is what the operative model charges `addScaled` at
 that destination width. -/
-theorem cuccaroModAddGateCount_eq_addScaled (width : Nat) (src : ForShor.ExtReg)
+theorem cuccaroModAddGateCount_eq_addScaled (width : Nat) (src : Shor.ExtReg)
     (negSrc : Bool) (shift : Nat) :
     cuccaroModAddGateCount width =
-      (ForShor.addScaledResources (ForShor.canonicalExtReg width) src negSrc shift).totalGates := by
-  rw [cuccaroModAddGateCount, ForShor.addScaledResources, ForShor.canonicalExtReg_width]
+      (Shor.addScaledResources (Companion.canonicalExtReg width) src negSrc shift).totalGates := by
+  rw [cuccaroModAddGateCount, Shor.addScaledResources, Companion.canonicalExtReg_width]
 
 /-- Direct signed PhaseProduct base case, at bare widths. The companion proves
 this exact under any cost model. -/
@@ -151,9 +154,9 @@ Nonrecursive arithmetic cost of one table operation at the common working width.
 The shape is the companion's `phaseArithmeticOpCost`: shifts are free, and each
 arithmetic operation is charged **twice**, because one symbolic operation acts
 on the corresponding limb of both PhaseProduct operands. The constants differ
-deliberately. The companion's recurrence charges its loose `rippleAdderGateBound`,
+deliberately. The companion's recurrence charges its loose `Shor.rippleAdderGateBound`,
 because a clean affine cost is what makes its asymptotic recurrence solvable;
-this planner charges what `shorGateCostModel` actually charges.
+this planner charges what `Shor.shorGateCostModel` actually charges.
 `phaseArithmeticOpCost_le` records that the companion's own inequality between
 the two carries over.
 -/
@@ -170,16 +173,16 @@ layer assumes. This is the companion's exact-below-bound relationship, lifted
 from the primitives to one operation. -/
 theorem phaseArithmeticOpCost_le {k : Nat} (workingWidth : Nat) (op : valid_ops k) :
     phaseArithmeticOpCost workingWidth op
-      <= ForShor.phaseArithmeticOpCost workingWidth op := by
+      <= Companion.phaseArithmeticOpCost workingWidth op := by
   cases op with
   | shiftL _ _ => exact Nat.le_refl 0
   | shiftR _ _ => exact Nat.le_refl 0
   | negate _ =>
       exact Nat.mul_le_mul_left 2
-        (ForShor.negateResourcesAtWidth_totalGates_le_negateGateBound workingWidth)
+        (Companion.negateResourcesAtWidth_totalGates_le_negateGateBound workingWidth)
   | addScaled _ _ _ _ =>
       exact Nat.mul_le_mul_left 2
-        (ForShor.cuccaroModAddResources_totalGates_le_rippleAdderGateBound workingWidth)
+        (Companion.cuccaroModAddResources_totalGates_le_rippleAdderGateBound workingWidth)
   | phaseProduct _ => exact Nat.le_refl 0
 
 /-- Total nonrecursive arithmetic cost of a table-generation program. -/
@@ -194,9 +197,9 @@ def topLimbWidth (width limbWidth k : Nat) : Nat :=
 /--
 Sign-extension bookkeeping for one recursive node.
 
-The companion's `allocChunkGate` sign-extends only the top limb and
+The companion's `Shor.allocChunkGate` sign-extends only the top limb and
 zero-extends the other `k - 1` limbs, and `zeroExtend` / `zeroDealloc` are free
-under `shorGateResourceModel`. Each of the two top limbs is therefore extended
+under `Shor.shorGateResourceModel`. Each of the two top limbs is therefore extended
 and deallocated once, at `childWidth - topLimbWidth` CNOTs apiece.
 -/
 def signExtensionAllocationGateCount
@@ -247,11 +250,9 @@ def analyzeBalancedProgram {k : Nat}
     (analyzeProgram xWidth zWidth ops).arithmeticOperationCount =
       TableGeneration.arithmeticOperationCount ops := rfl
 
-theorem commonNeededWidth_pos {k : Nat} (needed : ForShor.NeededWidths k) :
-    0 < ForShor.commonNeededWidth needed := by
-  simpa [ForShor.commonNeededWidth, Nat.add_comm] using
-    (Nat.zero_lt_succ (Finset.univ.sup
-      (fun i : Fin k => max (needed.xneed i) (needed.zneed i))))
+theorem commonNeededWidth_pos {k : Nat} (needed : Shor.NeededWidths k) :
+    0 < Shor.commonNeededWidth needed := by
+  simp [Shor.commonNeededWidth]
 
 theorem nextSignedWidth_pos {k : Nat}
     (xWidth zWidth : Nat) (ops : Prog k) :
