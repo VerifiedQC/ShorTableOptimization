@@ -83,10 +83,25 @@ jobs:
       - name: Restore Lean dependency cache
         uses: actions/cache/restore@v4
         with:
-          path: submission/.lake/packages
+          path: .lake/packages
           key: lake-packages-${{ runner.os }}-${{ hashFiles('verifier/lake-manifest.json', 'verifier/lean-toolchain') }}
           restore-keys: |
             lake-packages-${{ runner.os }}-
+
+      # A cache's version is a hash of its `path`. `lean-build-cache.yml` saves
+      # from the repository root, so the entry has to be restored at the same
+      # relative path and then moved into the checkout.
+      - name: Move restored dependencies into the checkout
+        run: |
+          set -euo pipefail
+          if [ -d .lake/packages ]; then
+            mkdir -p submission/.lake
+            rm -rf submission/.lake/packages
+            mv .lake/packages submission/.lake/packages
+            echo "restored dependency tree into submission/.lake/packages"
+          else
+            echo "no dependency cache restored"
+          fi
 
       # A cache miss on the dependency tree would otherwise mean compiling
       # Mathlib from source, which no CI budget survives.
@@ -97,10 +112,22 @@ jobs:
       - name: Restore Lean build cache
         uses: actions/cache/restore@v4
         with:
-          path: submission/.lake/build
+          path: .lake/build
           key: lake-build-${{ runner.os }}-${{ hashFiles('verifier/lean-toolchain', 'verifier/lakefile.lean', 'verifier/TableGeneration/**/*.lean') }}
           restore-keys: |
             lake-build-${{ runner.os }}-
+
+      - name: Move restored build into the checkout
+        run: |
+          set -euo pipefail
+          if [ -d .lake/build ]; then
+            mkdir -p submission/.lake
+            rm -rf submission/.lake/build
+            mv .lake/build submission/.lake/build
+            echo "restored build tree into submission/.lake/build"
+          else
+            echo "no build cache restored"
+          fi
 
       - name: Run verifier
         working-directory: submission
