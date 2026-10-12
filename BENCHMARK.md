@@ -45,7 +45,7 @@ validation are documented in [RECURSIVE_COST_MODEL.md](RECURSIVE_COST_MODEL.md).
 ## Published Results
 
 The current per-target champions are displayed on the
-[leaderboard website](https://jpatel2005.github.io/ShorTableOptimization/).
+[leaderboard website](https://verifiedqc.github.io/ShorTableOptimization/).
 
 For each successful submission, CI publishes:
 
