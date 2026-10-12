@@ -16,8 +16,9 @@ submissions.
 - `TableGeneration/Policy.lean` defines the portable policy interface.
 - `TableGeneration/BestKnown.lean` selects promoted policies before the general
   fallback.
-- `TableGeneration/RecursiveCost/` defines the standalone recursive gate-count
-  model and policy planner.
+- `TableGeneration/RecursiveCost/` defines the recursive gate-count model and
+  policy planner, and is the only part of the tree that depends on Mathlib and
+  on the `Fast_multiplication` companion.
 - `TableGeneration/Submission/Policy.lean` contains the submitted policy.
 - `leaderboard/config.json` defines the active targets and score weights.
 - `leaderboard/site/index.html` is the static leaderboard website.

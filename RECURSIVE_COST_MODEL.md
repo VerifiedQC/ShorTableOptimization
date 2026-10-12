@@ -57,42 +57,42 @@ The table-operation languages are compatible. Both repositories use:
 - `addScaled`; and
 - `phaseProduct`.
 
-The gate costs are not reproduced here. The minimal set of ForShor
-definitions the cost model needs -- `Reg`, `ExtReg`, `LowGate`,
-`LowGateCostModel`, `GateResources`, the Cuccaro resource records, and
-`shorGateCostModel` itself -- is integrated verbatim under
-`TableGeneration/RecursiveCost/ForShor/`, pinned to ForShor commit `d5a165b`
-and carrying per-file provenance headers. The planner's `v3` constants are
-computed from those records, so the familiar `9w - 16` and `10w - 14` are
-theorems (`cuccaroModAddGateCount_eq`, `cuccaroNegateGateCount_eq`) rather
-than numbers copied from the companion, and
+The gate costs are not reproduced here, and they are no longer copied either.
+`Reg`, `ExtReg`, `LowGate`, `LowGateCostModel`, `GateResources`, the Cuccaro
+resource records and `shorGateCostModel` itself are the companion's own
+definitions, imported from the `Fast_multiplication` dependency. There used to
+be a transcribed slice under `TableGeneration/RecursiveCost/ForShor/` kept in
+step by a hand-run drift check; sourcing the definitions removes both the copy
+and the drift, and `scripts/check_forshor_slice.py` went with them.
+
+The planner's constants are computed from those records, so the familiar
+`9w - 16` and `10w - 14` are theorems (`cuccaroModAddGateCount_eq`,
+`cuccaroNegateGateCount_eq`) rather than numbers copied from the companion, and
 `cuccaroNegateGateCount_eq_model` ties the planner's constant to what
 `shorGateCostModel.negate` charges, by `rfl` and with no axioms.
 
-### Re-checking the slice against upstream
+### What this repository adds on top
 
-The slice is pinned to companion commit `d5a165b`. It is a copy, so it can drift
-if the companion changes. Re-check it deliberately when syncing to a newer
-commit:
+Three things the companion does not supply, all under
+`TableGeneration/RecursiveCost/`:
 
-```sh
-FORSHOR_ROOT=/path/to/ForShor python3 scripts/check_forshor_slice.py
+- `CompanionTransport.lean` -- the single bridge between this repository's
+  `Operations.valid_ops` / `Point` and the companion's. They are distinct
+  inductives of identical shape, because the submission path has to stay
+  Mathlib-free.
+- `CompanionCost.lean` -- a `Nat`-indexed face on cost functions the companion
+  states over an `ExtReg` but reads only a width from, so the planner pays no
+  `O(w)` register construction per query.
+- `CompanionAllocation.lean` and `AllocationAgreement.lean` -- the companion
+  bounds its allocation bookkeeping (`<= 2nW`); the planner charges a closed
+  form and needs the exact figure, so these evaluate
+  `bookkeepingGateCost (compileSignedAllocations ...)` and prove the closed form
+  **equal** to it.
 
-# before re-pinning, compare against the companion's HEAD instead
-python3 scripts/check_forshor_slice.py --forshor /path/to/ForShor --working-tree
-```
-
-It reports how many declarations match, lists the deliberate deviations with
-their reasons, and exits non-zero on drift. It currently reports 61 matching
-with 5 declared deviations, all of them generic order lemmas replaced by defeq
-`Nat` counterparts.
-
-This is a maintainer tool, not a CI gate: a hosted runner has no companion
-checkout, so running it there would only ever skip. What guards the cost model
-continuously is in-repo and needs no checkout -- the oracle's `--width-scan` and
-`--allocation` modes, run by `scripts/test_recursive_cost.js`, which check the
-planner's array width scan and its closed-form allocation charge against the
-integrated copies.
+What guards the cost model continuously is in-repo and needs no companion
+checkout -- the oracle's `--width-scan` and `--allocation` modes, run by
+`scripts/test_recursive_cost.js`, which check the planner's array width scan and
+its closed-form allocation charge against the companion's own definitions.
 
 ForShor is a Lake dependency, declared in `lakefile.lean` as the package
 `Fast_multiplication` and tracking its `main` branch. Mathlib is required first
@@ -125,9 +125,48 @@ The dependency is confined to `TableGeneration/RecursiveCost/**`, enforced by
 `scripts/check_mathlib_confinement.py`, which is what keeps the submission axiom
 audit reporting `propext` alone.
 
-The integrated slice under `TableGeneration/RecursiveCost/ForShor/` is still what
-the cost model uses. Replacing it with imports from the dependency is deferred
-until ForShor's reorganisation settles and its exposed surface is final.
+### Checking the closed form against the companion's compiler
+
+The oracle checks the planner's *parts*. To check the whole number, the
+companion can compile a table to a `LowGate` tree and count it, which is the
+quantity `lake exe forshor_emit pp <k> <n> <phi> --flat` prints:
+
+    lake env lean --run scripts/tests/ChampionGateCountDifferential.lean
+
+It prices this repository's promoted champions -- not the companion's standard
+table -- both ways, and insists on exact integer agreement. It is not in CI: it
+takes about five minutes, and is feasible only at `k = 2` and `k = 3`, because
+the lowered term has `recursiveCallCount ^ depth` leaves and does not finish at
+`k >= 4`.
+
+One subtlety it has to account for, set out in full in
+`TableGeneration/RecursiveCost/ChampionLowering.lean`: the companion's
+`PhaseLoweringPlan` recurses on exactly one condition, whether the table
+strictly contracts the width, with no cost comparison anywhere. The planner also
+gets to decline, reporting the schoolbook base case when recursing is dearer. So
+the planner answers "what is the cheapest policy at this width" and the compiler
+answers "what does this table compile to", and the two coincide only where the
+planner's optimum is to recurse. The differential drives the planner's own
+per-node charge with the companion's stopping rule, and prints the planner's
+own figure beside it so the gap stays visible.
+
+The default sweep agrees exactly at every width it can reach:
+
+| k | width | child | closed form | planner min | `LowGate.gateCount` |
+|---|---|---|---|---|---|
+| 2 | 8 | 7 | 935 | 320 | 935 |
+| 2 | 10 | 8 | 3041 | 500 | 3041 |
+| 2 | 12 | 9 | 9395 | 720 | 9395 |
+| 2 | 14 | 10 | 9431 | 980 | 9431 |
+| 2 | 16 | 11 | 28529 | 1280 | 28529 |
+| 3 | 20 | 19 | 60234 | 2000 | 60234 |
+| 3 | 24 | 20 | 304826 | 2880 | 304826 |
+
+The third and fifth columns are the two independent computations and they match
+digit for digit. The fourth is the planner's own rule, and its distance from the
+other two is the whole content of the subtlety above: at these widths the
+champion's optimum is the schoolbook base case, so the planner declines to
+recurse where the compiler cannot. That column is printed, not asserted on.
 
 What is integrated is the *circuit-level* model. ForShor's own
 recurrence-level costing, `phaseArithmeticOpCost` in
@@ -314,15 +353,10 @@ future ForShor cost-model change does not silently reinterpret old estimates.
 
 ## Model versions (investigation branch)
 
-`v2` (`forshor-phase-product-gates-v2`) remains the default and is unchanged:
-`rippleAdder(w) = 9w + 2`, `negate(w) = 10w + 2`, free sign extension, no
-allocation bookkeeping. Every existing plan regenerates byte-identically under
-it; `analyzeWith_v2` in `TableGeneration/RecursiveCost/Catalog.lean` proves the
-parameterized analyzer agrees with the original one at `v2Costs`.
-
-`v3` (`forshor-phase-product-gates-v3`) transcribes the operative model at
-companion commit `d5a165b`, `shorGateCostModel = shorGateResourceModel.toCostModel`
-in `Framework/Gatecount/ResourceModel.lean`:
+`v3` (`forshor-phase-product-gates-v3`) is the only model. It is the companion's
+operative `shorGateCostModel = shorGateResourceModel.toCostModel` in
+`Framework/Gatecount/ResourceModel.lean`, read from the dependency at the
+revision `lake-manifest.json` pins:
 
 - `addScaled`: exact Cuccaro modulo adder,
   `(2w - 6) + (5w - 7) + (2w - 3)` = `9w - 16` for `w >= 3`;
@@ -340,11 +374,9 @@ other `k - 1` limbs, the exact per-node allocation charge is
 bound proved in `GateCount/PhaseProduct/Lemmas.lean` (`lgc_allocs_le`,
 `lgc_deallocs_le`) for the asymptotic recurrence; it is the same category of
 object as `rippleAdderGateBound` and is not a cost the operative model charges.
-`v3-loose4kw` substitutes that bound and exists only as a sensitivity
-comparison; it must not be described as the companion's model.
-
-Selecting a version:
-
-- Lean: `bestPlanWith v3Costs candidates width`, or the oracle's
-  `--model=v2|v3|v3-loose4kw`.
-- JavaScript: `RecursiveCost.selectModel("v3")`.
+A `v3-loose4kw` variant substituting that bound used to exist as a sensitivity
+comparison. It was never the companion's model and is gone, as is `v2`, whose
+upstream counterpart the companion deleted. The version string survives in
+`modelVersion` and in the oracle's `--model=` selector, which still rejects
+anything but `v3`, so an invocation naming a retired model fails loudly instead
+of being silently reinterpreted.

@@ -84,7 +84,10 @@ function testGateModel() {
   assert.equal(RecursiveCost.negateGateBound(7), 72n);
   assert.equal(RecursiveCost.directSignedPhaseProductGateCount(7, 9), 315n);
 
-  // v3 primitives, against ResourceModel.lean at companion commit d5a165b.
+  // v3 primitives, against the companion's own
+  // Framework/Gatecount/ResourceModel.lean at the revision `lake-manifest.json`
+  // pins. The Lean side reads those records directly rather than copying them,
+  // so this is the transcription that can drift and the one worth asserting on.
   // Cuccaro: x = 2w - 6, cnot = 5w - 7, toffoli = 2w - 3; totalGates = 9w - 16.
   assert.equal(RecursiveCost.cuccaroModAddGateCount(7), 47n);
   assert.equal(RecursiveCost.cuccaroModAddGateCount(7), 9n * 7n - 16n);
