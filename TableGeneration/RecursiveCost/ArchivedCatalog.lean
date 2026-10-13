@@ -1,4 +1,5 @@
 import TableGeneration.RecursiveCost.Catalog
+import TableGeneration.Policies.Accepted.P0c074ebe3b35
 import TableGeneration.Policies.Accepted.P2a0c1db7342f
 import TableGeneration.Policies.Accepted.P348de30a1f93
 import TableGeneration.Policies.Accepted.P58147b7627fb
@@ -72,6 +73,11 @@ def archivedCandidates : List Candidate :=
     , hk := by decide
     , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
         .PhaseProduct 5 (by decide) }
+  , { policyId := "0c074ebe3b3586901a591f3b5e79096d820adc55"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.P0c074ebe3b35.implementation.generate
+        .PhaseProduct 6 (by decide) }
   , { policyId := "58147b7627fb7d666e10d784b26f290754e3987b"
     , k := 6
     , hk := by decide

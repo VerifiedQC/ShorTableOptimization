@@ -1,4 +1,5 @@
 import TableGeneration.Policy
+import TableGeneration.Policies.Accepted.P0c074ebe3b35
 import TableGeneration.Policies.Accepted.P2a0c1db7342f
 import TableGeneration.Policies.Accepted.P348de30a1f93
 import TableGeneration.Policies.Accepted.P52ec6fce9b57
@@ -39,7 +40,7 @@ def bestKnownGeneratedPoints (mode : ProductMode) (k : Nat) : List Point :=
     Policies.Accepted.P2a0c1db7342f.implementation.generatedPoints
       mode k
   else if mode = .PhaseProduct ∧ k = 6 then
-    Policies.Accepted.P58147b7627fb.implementation.generatedPoints
+    Policies.Accepted.P0c074ebe3b35.implementation.generatedPoints
       mode k
   else if mode = .PhaseTripleProduct ∧ k = 6 then
     Policies.Accepted.P58147b7627fb.implementation.generatedPoints
@@ -134,7 +135,7 @@ def bestKnownGeneratePointsInOrder
     Policies.Accepted.P2a0c1db7342f.implementation.generatePointsInOrder
       mode k hk
   else if mode = .PhaseProduct ∧ k = 6 then
-    Policies.Accepted.P58147b7627fb.implementation.generatePointsInOrder
+    Policies.Accepted.P0c074ebe3b35.implementation.generatePointsInOrder
       mode k hk
   else if mode = .PhaseTripleProduct ∧ k = 6 then
     Policies.Accepted.P58147b7627fb.implementation.generatePointsInOrder
@@ -229,7 +230,7 @@ def bestKnownGenerate
     Policies.Accepted.P2a0c1db7342f.implementation.generate
       mode k hk
   else if mode = .PhaseProduct ∧ k = 6 then
-    Policies.Accepted.P58147b7627fb.implementation.generate
+    Policies.Accepted.P0c074ebe3b35.implementation.generate
       mode k hk
   else if mode = .PhaseTripleProduct ∧ k = 6 then
     Policies.Accepted.P58147b7627fb.implementation.generate
@@ -315,7 +316,7 @@ def bestKnownPolicyId (mode : ProductMode) (k : Nat) : String :=
   else if mode = .PhaseTripleProduct ∧ k = 5 then
     "2a0c1db7342f6731447037ba3de30a32911f7eb1"
   else if mode = .PhaseProduct ∧ k = 6 then
-    "58147b7627fb7d666e10d784b26f290754e3987b"
+    "0c074ebe3b3586901a591f3b5e79096d820adc55"
   else if mode = .PhaseTripleProduct ∧ k = 6 then
     "58147b7627fb7d666e10d784b26f290754e3987b"
   else if mode = .PhaseProduct ∧ k = 7 then
