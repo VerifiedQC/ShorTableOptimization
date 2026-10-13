@@ -6,6 +6,7 @@ import TableGeneration.Policies.Accepted.P58147b7627fb
 import TableGeneration.Policies.Accepted.P6f7d25984ff8
 import TableGeneration.Policies.Accepted.Pf0f15fefe959
 import TableGeneration.Policies.Accepted.Pf4aff955f16b
+import TableGeneration.Policies.Accepted.Pfd41c2aa4b3e
 
 namespace TableGeneration.RecursiveCost
 
@@ -92,6 +93,11 @@ def archivedCandidates : List Candidate :=
     , k := 6
     , hk := by decide
     , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 6 (by decide) }
+  , { policyId := "fd41c2aa4b3e2f537588114e05494dd1b0600e76"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.Pfd41c2aa4b3e.implementation.generate
         .PhaseProduct 6 (by decide) }
   , { policyId := "348de30a1f9385a22445507dac9dde4aad3a83a7"
     , k := 7
