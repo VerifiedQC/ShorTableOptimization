@@ -206,14 +206,58 @@ def dispatch_lines(
     return lines
 
 
+def champion_layer_bound(leaderboard: dict[str, Any]) -> dict[int, int]:
+    """Parallel phase-product layers of the champion at each catalogue arity.
+
+    The planner minimises gates and the gate model charges nothing for depth, so
+    without a bound a table could buy gates by adding sequential layers. Until
+    the benchmark states a depth rule of its own, the champion's layer count is
+    the bound: a candidate may match it but not exceed it.
+    """
+    policies = policy_by_id(leaderboard)
+    bound: dict[int, int] = {}
+    for champion in leaderboard.get("champions", []):
+        if champion.get("mode") != CATALOG_MODE:
+            continue
+        k = champion.get("k")
+        ids = champion.get("policy_ids")
+        if not isinstance(k, int) or not isinstance(ids, list) or not ids:
+            raise ValueError("leaderboard champion target is invalid")
+        policy = policies.get(sorted(ids)[0])
+        if policy is None:
+            raise ValueError(f"champion policy for {CATALOG_MODE} k={k} is missing")
+        metrics = next(
+            (
+                item
+                for item in policy.get("results", [])
+                if isinstance(item, dict)
+                and item.get("mode") == CATALOG_MODE
+                and item.get("k") == k
+            ),
+            None,
+        )
+        if metrics is None:
+            raise ValueError(f"champion lacks {CATALOG_MODE} k={k} metrics")
+        layers = metrics.get("parallel_phase_product_layer_count")
+        if not isinstance(layers, int):
+            raise ValueError(f"champion {CATALOG_MODE} k={k} has no layer count")
+        bound[k] = layers
+    return bound
+
+
 def catalog_entries(
     leaderboard: dict[str, Any],
     config_targets: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Every accepted PhaseProduct table, champion or not, as planner candidates."""
+    """Every accepted PhaseProduct table, champion or not, as planner candidates.
+
+    Candidates deeper than the champion at the same arity are excluded; see
+    `champion_layer_bound`.
+    """
     configured = {
         target["k"] for target in config_targets if target["mode"] == CATALOG_MODE
     }
+    layer_bound = champion_layer_bound(leaderboard)
     entries: list[dict[str, Any]] = []
     for policy in leaderboard.get("policies", []):
         policy_id = policy.get("policy_id")
@@ -229,6 +273,12 @@ def catalog_entries(
             if not isinstance(k, int):
                 raise ValueError(f"policy {policy_id} has an invalid k")
             if k not in configured:
+                continue
+            layers = item.get("parallel_phase_product_layer_count")
+            if not isinstance(layers, int):
+                raise ValueError(f"policy {policy_id} {CATALOG_MODE} k={k} has no layer count")
+            bound = layer_bound.get(k)
+            if bound is not None and layers > bound:
                 continue
             entries.append(
                 {
