@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import hashlib
 import shutil
 from typing import Any
 
@@ -31,6 +32,21 @@ def stage(site: Path, results_root: Path, out: Path) -> None:
         if not source.is_file():
             raise ValueError(f"site file is missing: {name}")
         shutil.copyfile(source, out / name)
+
+    # The stylesheet keeps its name across deploys, so a browser that has
+    # visited before serves the old one from cache and renders the new markup
+    # unstyled. Stamp the href with a digest of the file so each change is a
+    # new URL.
+    digest = hashlib.sha256((site / "site.css").read_bytes()).hexdigest()[:10]
+    for name in ("index.html", "targets.html"):
+        page = out / name
+        text = page.read_text(encoding="utf-8")
+        if 'href="site.css"' not in text:
+            raise ValueError(f"{name} does not link site.css")
+        page.write_text(
+            text.replace('href="site.css"', f'href="site.css?v={digest}"'),
+            encoding="utf-8",
+        )
     shutil.copyfile(index_path, out / "results.json")
 
     policies = leaderboard.get("policies")

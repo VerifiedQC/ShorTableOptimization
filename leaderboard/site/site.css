@@ -376,3 +376,42 @@ footer {
   .rules dt { color: #aab4c3; }
   #board td[colspan] { background: #202734; }
 }
+
+/* Term and definition side by side. Explicit grid rather than relying on the
+   browser's default dd indent being reset, so the block degrades sanely if the
+   stylesheet is ever missing. */
+.rules {
+  display: grid;
+  grid-template-columns: minmax(130px, max-content) 1fr;
+  gap: 8px 18px;
+  align-items: baseline;
+}
+.rules dt { margin: 0; }
+.rules dd { margin: 0; }
+
+@media (max-width: 640px) {
+  .rules { grid-template-columns: 1fr; gap: 2px; }
+  .rules dd { margin-bottom: 8px; }
+}
+
+/* The tables column holds several ids and is what pushes the board past a
+   narrow viewport, so let it wrap instead of forcing a horizontal scroll. */
+#board .tables-cell {
+  white-space: normal;
+  word-spacing: 0.35em;
+  min-width: 11ch;
+}
+#board th, #board td { padding-left: 10px; padding-right: 10px; }
+
+/* Below a desktop width the board drops its two detail columns, recursive
+   calls and arithmetic ops, rather than scrolling sideways. Both are still in
+   the expanded plan. */
+@media (max-width: 1000px) {
+  #board th:nth-child(5), #board td:nth-child(5),
+  #board th:nth-child(6), #board td:nth-child(6) { display: none; }
+}
+
+@media (max-width: 720px) {
+  #board th:nth-child(4), #board td:nth-child(4) { display: none; }
+  #board .tables-cell { font-size: 0.78rem; }
+}

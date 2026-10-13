@@ -41,7 +41,7 @@
             <button type="submit">Rebuild</button>
           </form>
         </div>
-        <p class="planner-status" id="board-status" role="status">Loading verified results\u2026</p>
+        <p class="planner-status" id="board-status" role="status">Loading verified results…</p>
         <div class="table-wrap" id="board-wrap" hidden>
           <table id="board">
             <thead>
@@ -296,7 +296,7 @@
         const seen = [];
         for (const level of RecursiveCost.planLevels(plan)) {
           if (level.type === "direct") continue;
-          const id = String(level.policyId).slice(0, 8);
+          const id = String(level.policyId).slice(0, 6);
           if (!seen.includes(id)) seen.push(id);
         }
         return seen;
@@ -343,7 +343,7 @@
           cell(row, count(plan.recursionHeight));
           cell(row, count(plan.totalRecursiveCallCount));
           cell(row, count(plan.totalArithmeticOperationCount));
-          cell(row, tablesIn(plan).join(", "), "policy");
+          cell(row, tablesIn(plan).join(" "), "policy tables-cell");
 
           const toggleCell = document.createElement("td");
           const toggle = document.createElement("button");
