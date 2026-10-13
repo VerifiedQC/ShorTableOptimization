@@ -79,17 +79,17 @@ jobs:
         if: steps.update.outputs.changed == 'true'
         run: node scripts/test_recursive_cost.js
 
-      # The gate. These are the champions-only totals, which is what the
-      # shipped Lean catalogue reproduces; if the companion changed the cost
-      # model they move, and this bump stops being routine.
+      # The gate. These are the full-archive totals the shipped Lean catalogue
+      # reproduces, and the figures the write-up quotes; if the companion
+      # changed the cost model they move, and this bump stops being routine.
       - name: Planner totals unchanged
         if: steps.update.outputs.changed == 'true'
         run: |
           set -euo pipefail
           expected=$(cat <<'TOTALS'
-          1024	1798788
+          1024	1798136
           2048	5009071
-          4096	12860900
+          4096	12803453
           8192	32277696
           16384	79971062
           TOTALS

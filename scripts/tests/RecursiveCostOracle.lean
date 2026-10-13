@@ -146,7 +146,7 @@ to canonical registers of the same width.
 -/
 def checkWidthScanAgreement (widths : List Nat) : IO Unit := do
   for width in widths do
-    for candidate in bestKnownCandidates do
+    for candidate in archivedCandidates do
       let fast := nextBalancedSignedWidth width candidate.program
       let spec :=
         Companion.nextSignedWidth (Companion.canonicalExtReg width)
@@ -186,10 +186,10 @@ def main (rawArgs : List String) : IO Unit := do
   let args ← takeModel rawArgs
   match args with
   | "--catalog" :: _ =>
-      for candidate in bestKnownCandidates do
+      for candidate in archivedCandidates do
         IO.println (candidateLine candidate)
   | "--best-known" :: rawWidths =>
-      printPlans bestKnownCandidates rawWidths
+      printPlans archivedCandidates rawWidths
   | "--reference" :: rawWidths =>
       for raw in rawWidths do
         let width ← parseWidth raw
@@ -215,7 +215,7 @@ def main (rawArgs : List String) : IO Unit := do
       checkDenseSparseAgreement "binary" [binaryCandidate] widths
       checkDenseSparseAgreement "transitions" [transitionCandidate] widths
       checkDenseSparseAgreement "combined" [binaryCandidate, transitionCandidate] widths
-      checkDenseSparseAgreement "best-known" bestKnownCandidates widths
+      checkDenseSparseAgreement "best-known" archivedCandidates widths
       IO.println "dense/sparse agreement passed"
   | rawWidths =>
       printPlans [binaryCandidate] rawWidths

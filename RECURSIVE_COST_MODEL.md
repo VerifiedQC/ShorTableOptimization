@@ -28,9 +28,11 @@ The existing Lean verifier proves that a policy's symbolic operation program is
 valid. That proof is independent of the operand width.
 
 The recursive planner consumes only verified programs and decides how to use
-them for a particular width. The Lean model has one promoted built-in program
-per `k`; the website augments that catalog with every successful PhaseProduct
-result retained on `submission-results`:
+them for a particular width. Both the Lean model and the website search the
+same set: every accepted PhaseProduct result retained on `submission-results`,
+not just the per-target champions. Champions are chosen by the leaderboard's
+structural weighted cost and the planner minimises gate count, so a table that
+lost its champion slot can still be the cheapest choice at some width:
 
 ```text
 verified policies (k and operation program)
@@ -111,9 +113,9 @@ these are the figures the write-up quotes:
     lake env lean --run scripts/tests/RecursiveCostOracle.lean \
       --model=v3 --best-known 1024 2048 4096 8192 16384
 
-    1024   1798788   4    280    208
+    1024   1798136   4    280    210
     2048   5009071   4    594    502
-    4096   12860900  4    1196   1157
+    4096   12803453  4    1012   988
     8192   32277696  5    4693   3692
     16384  79971062  5    10115  8689
 

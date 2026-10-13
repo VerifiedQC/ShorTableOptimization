@@ -1,4 +1,4 @@
-import TableGeneration.RecursiveCost.Catalog
+import TableGeneration.RecursiveCost.ArchivedCatalog
 
 namespace TableGeneration.RecursiveCost
 
@@ -161,8 +161,15 @@ def bestPlan
   (findPlan? (buildSparsePlans candidates [width]) width).getD
     (PlanResult.base width)
 
-/-- Minimum-gate plan using the current promoted PhaseProduct catalog. -/
+/--
+Minimum-gate plan over every accepted `PhaseProduct` table.
+
+The search set is `archivedCandidates`, not `bestKnownCandidates`. Champions are
+selected by the leaderboard's structural weighted cost; this planner minimises
+gate count. Those are different objectives, so restricting the search to
+champions can discard the cheapest table at a width.
+-/
 def bestKnownPlan (width : Nat) : PlanResult :=
-  bestPlan bestKnownCandidates width
+  bestPlan archivedCandidates width
 
 end TableGeneration.RecursiveCost
