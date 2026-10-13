@@ -3,6 +3,7 @@ import TableGeneration.Policies.Accepted.P2a0c1db7342f
 import TableGeneration.Policies.Accepted.P348de30a1f93
 import TableGeneration.Policies.Accepted.P58147b7627fb
 import TableGeneration.Policies.Accepted.P6f7d25984ff8
+import TableGeneration.Policies.Accepted.Pf0f15fefe959
 import TableGeneration.Policies.Accepted.Pf4aff955f16b
 
 namespace TableGeneration.RecursiveCost
@@ -31,6 +32,11 @@ def archivedCandidates : List Candidate :=
     , hk := by decide
     , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
         .PhaseProduct 3 (by decide) }
+  , { policyId := "f0f15fefe9593f566707b431959eeb845db93f4f"
+    , k := 3
+    , hk := by decide
+    , program := Policies.Accepted.Pf0f15fefe959.implementation.generate
+        .PhaseProduct 3 (by decide) }
   , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
     , k := 3
     , hk := by decide
@@ -55,6 +61,11 @@ def archivedCandidates : List Candidate :=
     , k := 5
     , hk := by decide
     , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 5 (by decide) }
+  , { policyId := "f0f15fefe9593f566707b431959eeb845db93f4f"
+    , k := 5
+    , hk := by decide
+    , program := Policies.Accepted.Pf0f15fefe959.implementation.generate
         .PhaseProduct 5 (by decide) }
   , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
     , k := 5
