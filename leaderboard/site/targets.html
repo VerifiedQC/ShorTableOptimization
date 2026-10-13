@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Shor Table Optimization Leaderboard</title>
+    <link rel="stylesheet" href="site.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Table Generation Leaderboard</h1>
+          <p class="subtitle">Verified per-target policies, scored by structural weighted cost. The gate-count leaderboard is on the <a href="index.html">RSA-2048 page</a>.</p>
+        </div>
+        <nav aria-label="Project links">
+          <a href="index.html">RSA-2048 leaderboard</a>
+          <a href="https://github.com/VerifiedQC/ShorTableOptimization">Repository</a>
+          <a href="https://github.com/VerifiedQC/ShorTableOptimization/blob/main/BENCHMARK.md">Benchmark</a>
+          <a href="https://github.com/VerifiedQC/ShorTableOptimization/compare/main...automation/best-known?expand=1">Create best-known PR</a>
+        </nav>
+      </header>
+
+      <section class="summary" aria-label="Leaderboard summary">
+        <div class="card"><span>Coverage</span><strong id="coverage">—</strong></div>
+        <div class="card"><span>Updated</span><strong id="updated">—</strong></div>
+      </section>
+
+      <section class="planner" aria-labelledby="planner-title">
+        <h2 id="planner-title">Recursive multiplication planner</h2>
+        <p class="subtitle">Find the lowest estimated logical gate count across verified policies.</p>
+        <form class="planner-form" id="planner-form">
+          <label>
+            Integer bit length (n)
+            <input id="planner-width" name="width" type="number"
+              min="1" step="1" placeholder="Enter bit length" required>
+          </label>
+          <button type="submit">Build plan</button>
+        </form>
+        <p class="planner-status" id="planner-status" role="status"></p>
+        <div class="planner-output" id="planner-output" hidden>
+          <div class="result-summary" aria-label="Plan summary">
+            <div class="result-stat"><span>Logical gates</span><strong id="planner-gates">—</strong></div>
+            <div class="result-stat"><span>Recursion levels</span><strong id="planner-height">—</strong></div>
+            <div class="result-stat"><span>Recursive calls</span><strong id="planner-calls">—</strong></div>
+            <div class="result-stat"><span>Arithmetic operations</span><strong id="planner-arithmetic">—</strong></div>
+          </div>
+          <p class="planner-detail" id="planner-detail"></p>
+          <h3 class="plan-heading">Selected recursion plan</h3>
+          <p class="plan-intro">Each level shows how many identical subproblems exist after branching.</p>
+          <ol class="plan-tree" id="plan-tree"></ol>
+          <details class="result-json">
+            <summary>Machine-readable result</summary>
+            <pre id="planner-json"></pre>
+          </details>
+        </div>
+      </section>
+
+      <p class="formula" id="formula">weighted cost</p>
+
+      <div class="table-wrap">
+        <p id="status" role="status">Loading verified results…</p>
+        <table id="results" hidden>
+          <thead>
+            <tr>
+              <th scope="col">Target</th>
+              <th scope="col">Score</th>
+              <th scope="col">Arithmetic</th>
+              <th scope="col">Layers</th>
+              <th scope="col">Phase products</th>
+              <th scope="col">Total</th>
+              <th scope="col">Points</th>
+              <th scope="col">Policy</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <footer>
+        <p>Each target is scored independently.</p>
+        <p><a href="results.json">Results JSON</a></p>
+      </footer>
+
+      <dialog id="operations-dialog" aria-labelledby="operations-title">
+        <div class="dialog-header">
+          <h2 id="operations-title">Operations</h2>
+          <button class="close-button" id="close-dialog" type="button">Close</button>
+        </div>
+        <p class="dialog-status" id="operations-status" role="status"></p>
+        <div id="operations-content" hidden>
+          <details>
+            <summary>Generated points</summary>
+            <code id="generated-points"></code>
+          </details>
+          <details>
+            <summary>Point order</summary>
+            <code id="point-order"></code>
+          </details>
+          <h3 id="operation-count"></h3>
+          <pre id="operation-list"></pre>
+          <p><a id="operations-json">Open operations JSON</a></p>
+        </div>
+      </dialog>
+    </main>
+
+    <script src="recursive-cost.js"></script>
+    <script>
+      const repository = "https://github.com/VerifiedQC/ShorTableOptimization";
+      const table = document.querySelector("#results");
+      const body = table.querySelector("tbody");
+      const status = document.querySelector("#status");
+      const operationsDialog = document.querySelector("#operations-dialog");
+      const operationsStatus = document.querySelector("#operations-status");
+      const operationsContent = document.querySelector("#operations-content");
+      const operationsCache = new Map();
+      let leaderboardData = null;
+      let plannerCandidatePromise = null;
+
+      function addCell(row, value, className = "") {
+        const cell = document.createElement("td");
+        cell.textContent = value;
+        cell.className = className;
+        row.append(cell);
+        return cell;
+      }
+
+      function targetCount(benchmark) {
+        const matrix = benchmark.target_matrix;
+        return matrix.modes.length * (matrix.k_max - matrix.k_min + 1);
+      }
+
+      function resultFor(policy, champion) {
+        return policy.results.find(
+          item => item.mode === champion.mode && item.k === champion.k,
+        );
+      }
+
+      function displayMode(mode) {
+        return mode === "PhaseTripleProduct" ? "Phase Triple Product" : "Phase Product";
+      }
+
+      function weightedTerm(weight, label) {
+        return weight === 1 ? label : `${weight} × ${label}`;
+      }
+
+      function policyLink(policy) {
+        const source = policy.source;
+        const link = document.createElement("a");
+        link.className = "policy";
+        link.textContent = policy.policy_id.slice(0, 8);
+        link.title = policy.policy_id;
+        link.href = source.pr_number
+          ? `${repository}/pull/${source.pr_number}`
+          : `${repository}/tree/${encodeURIComponent(source.head_ref)}`;
+        return link;
+      }
+
+      function formatCount(value) {
+        return value.toLocaleString();
+      }
+
+      function plannerCandidates() {
+        if (!plannerCandidatePromise) {
+          plannerCandidatePromise = RecursiveCost.archivedPhaseProductCandidates(
+            leaderboardData,
+            loadOperations,
+          ).catch(error => {
+            plannerCandidatePromise = null;
+            throw error;
+          });
+        }
+        return plannerCandidatePromise;
+      }
+
+      function planFact(label, value) {
+        const fact = document.createElement("div");
+        fact.className = "plan-fact";
+        const name = document.createElement("span");
+        name.textContent = label;
+        const amount = document.createElement("strong");
+        amount.textContent = value;
+        fact.append(name, amount);
+        return fact;
+      }
+
+      function renderPlanTree(plan) {
+        const tree = document.querySelector("#plan-tree");
+        const policies = new Map(
+          leaderboardData.policies.map(policy => [policy.policy_id, policy]),
+        );
+        tree.replaceChildren();
+
+        for (const level of RecursiveCost.planLevels(plan)) {
+          const item = document.createElement("li");
+          item.className = "plan-step";
+          const node = document.createElement("div");
+          node.className = "plan-node";
+          const levelLabel = document.createElement("span");
+          levelLabel.className = "plan-level";
+          levelLabel.textContent = level.type === "direct"
+            ? "Direct base case"
+            : `Recursion level ${level.level + 1}`;
+          const title = document.createElement("h4");
+          title.textContent = level.instances === 1n
+            ? `${level.inputWidth}-bit input`
+            : `${formatCount(level.instances)} × ${level.inputWidth}-bit subproblems`;
+          const description = document.createElement("p");
+          const facts = document.createElement("div");
+          facts.className = "plan-facts";
+
+          if (level.type === "direct") {
+            description.textContent = "Evaluate every remaining multiplication directly.";
+            facts.append(
+              planFact("Gates per node", formatCount(level.gateCountPerNode)),
+              planFact("Expanded base gates", formatCount(level.expandedGateCount)),
+            );
+          } else {
+            description.textContent =
+              `Each node uses k=${level.k} and creates ` +
+              `${level.recursiveProductsPerNode} children at ${level.childWidth} bits.`;
+            const policy = policies.get(level.policyId);
+            const policyLine = document.createElement("p");
+            policyLine.className = "plan-policy";
+            policyLine.append(document.createTextNode("Policy "));
+            if (policy) policyLine.append(policyLink(policy));
+            else policyLine.append(document.createTextNode(level.policyId.slice(0, 8)));
+            if (policy?.operations_path) {
+              const operationsButton = document.createElement("button");
+              operationsButton.type = "button";
+              operationsButton.className = "operations-button";
+              operationsButton.textContent = "view operations";
+              operationsButton.setAttribute(
+                "aria-label",
+                `View Phase Product k=${level.k} operations for this recursion level`,
+              );
+              operationsButton.addEventListener("click", () => openOperations(policy, {
+                mode: "PhaseProduct",
+                k: level.k,
+              }));
+              policyLine.append(document.createTextNode(" · "), operationsButton);
+            }
+            facts.append(
+              planFact("Children per node", formatCount(level.recursiveProductsPerNode)),
+              planFact("Child width", `${formatCount(level.childWidth)} bits`),
+              planFact("Local gates per node", formatCount(level.localGateCountPerNode)),
+              planFact("Expanded level gates", formatCount(level.expandedLocalGateCount)),
+              planFact(
+                "Arithmetic ops per node",
+                formatCount(level.localArithmeticOperationsPerNode),
+              ),
+              planFact(
+                "Expanded arithmetic ops",
+                formatCount(level.expandedArithmeticOperations),
+              ),
+            );
+            node.append(levelLabel, title, description, policyLine, facts);
+            item.append(node);
+            tree.append(item);
+            continue;
+          }
+
+          node.append(levelLabel, title, description, facts);
+          item.append(node);
+          tree.append(item);
+        }
+      }
+
+      function formatOperation(operation) {
+        const [name, ...values] = operation;
+        if (name === "shiftL" || name === "shiftR") {
+          return `${name}(reg=${values[0]}, by=${values[1]})`;
+        }
+        if (name === "negate" || name === "phaseProduct") {
+          return `${name}(reg=${values[0]})`;
+        }
+        if (name === "addScaled") {
+          const sign = values[2] > 0 ? "+1" : "-1";
+          return `addScaled(dst=${values[0]}, src=${values[1]}, sign=${sign}, shift=${values[3]})`;
+        }
+        return JSON.stringify(operation);
+      }
+
+      async function openOperations(policy, champion) {
+        const path = policy.operations_path;
+        document.querySelector("#operations-title").textContent =
+          `${displayMode(champion.mode)} · k=${champion.k}`;
+        operationsStatus.textContent = "Loading operations…";
+        operationsContent.hidden = true;
+        operationsDialog.showModal();
+
+        try {
+          const data = await loadOperations(path);
+          if (data.schema_version !== 1) throw new Error("Unsupported operations schema.");
+          const target = data.targets.find(
+            item => item.mode === champion.mode && item.k === champion.k,
+          );
+          if (!target) throw new Error("Operations for this target are missing.");
+          document.querySelector("#generated-points").textContent =
+            target.generated_points.join(", ");
+          document.querySelector("#point-order").textContent = target.point_order.join(", ");
+          document.querySelector("#operation-count").textContent =
+            `Operations (${target.operations.length})`;
+          document.querySelector("#operation-list").textContent = target.operations
+            .map((operation, index) => `${index + 1}. ${formatOperation(operation)}`)
+            .join("\n");
+          document.querySelector("#operations-json").href = path;
+          operationsStatus.textContent = `Policy ${policy.policy_id.slice(0, 12)}`;
+          operationsContent.hidden = false;
+        } catch (error) {
+          operationsStatus.textContent = `Could not load operations: ${error.message}`;
+        }
+      }
+
+      function loadOperations(path) {
+        if (!operationsCache.has(path)) {
+          operationsCache.set(path, fetch(path, { cache: "no-store" }).then(response => {
+            if (!response.ok) throw new Error(`Operations request failed (${response.status}).`);
+            return response.json();
+          }));
+        }
+        return operationsCache.get(path);
+      }
+
+      function clearPlannerOutput() {
+        document.querySelector("#planner-output").hidden = true;
+        for (const id of [
+          "#planner-gates",
+          "#planner-height",
+          "#planner-calls",
+          "#planner-arithmetic",
+        ]) {
+          document.querySelector(id).textContent = "—";
+        }
+        document.querySelector("#planner-detail").replaceChildren();
+        document.querySelector("#plan-tree").replaceChildren();
+        document.querySelector("#planner-json").textContent = "";
+        document.querySelector(".result-json").open = false;
+      }
+
+      document.querySelector("#planner-form").addEventListener("submit", async event => {
+        event.preventDefault();
+        const output = document.querySelector("#planner-output");
+        const plannerStatus = document.querySelector("#planner-status");
+        const detail = document.querySelector("#planner-detail");
+        clearPlannerOutput();
+        plannerStatus.textContent = "Building the minimum-gate plan…";
+
+        try {
+          if (!leaderboardData) throw new Error("Leaderboard data has not loaded yet.");
+          const width = Number(document.querySelector("#planner-width").value);
+          if (!Number.isSafeInteger(width) || width < 1) {
+            throw new Error("Enter a positive integer bit length.");
+          }
+          const candidates = await plannerCandidates();
+          if (candidates.length === 0) {
+            throw new Error("No verified Phase Product policies are available.");
+          }
+          const plan = RecursiveCost.bestPlan(candidates, width);
+          document.querySelector("#planner-gates").textContent = formatCount(plan.gateCount);
+          document.querySelector("#planner-height").textContent = formatCount(plan.recursionHeight);
+          document.querySelector("#planner-calls").textContent =
+            formatCount(plan.totalRecursiveCallCount);
+          document.querySelector("#planner-arithmetic").textContent =
+            formatCount(plan.totalArithmeticOperationCount);
+          detail.replaceChildren(
+            document.createTextNode(
+              `Compared ${candidates.length} verified Phase Product strategies using ` +
+              `${RecursiveCost.modelVersion}. `,
+            ),
+          );
+          const modelLink = document.createElement("a");
+          modelLink.href = `${repository}/blob/main/RECURSIVE_COST_MODEL.md`;
+          modelLink.textContent = "Cost-model details";
+          detail.append(modelLink);
+          renderPlanTree(plan);
+          document.querySelector("#planner-json").textContent =
+            JSON.stringify(RecursiveCost.compactPlan(plan), null, 2);
+          output.hidden = false;
+          plannerStatus.textContent = `Plan ready for a ${formatCount(width)}-bit input.`;
+        } catch (error) {
+          plannerStatus.textContent = `Could not build the plan: ${error.message}`;
+        }
+      });
+
+      document.querySelector("#close-dialog").addEventListener("click", () => {
+        operationsDialog.close();
+      });
+
+      function render(data) {
+        if (data.schema_version !== 3) throw new Error("Unsupported results schema.");
+
+        const policies = new Map(data.policies.map(policy => [policy.policy_id, policy]));
+        const modeOrder = new Map(
+          data.benchmark.target_matrix.modes.map((mode, index) => [mode, index]),
+        );
+        const champions = [...data.champions].sort(
+          (left, right) => left.k - right.k || modeOrder.get(left.mode) - modeOrder.get(right.mode),
+        );
+
+        for (const champion of champions) {
+          for (const policyId of champion.policy_ids) {
+            const policy = policies.get(policyId);
+            if (!policy) throw new Error("A champion policy is missing.");
+            const metrics = resultFor(policy, champion);
+            if (!metrics) throw new Error("Champion metrics are missing.");
+
+            const row = document.createElement("tr");
+            const target = document.createElement("th");
+            target.scope = "row";
+            target.textContent = `${displayMode(champion.mode)} · k=${champion.k}`;
+            row.append(target);
+            addCell(row, metrics.weighted_cost, "score");
+            addCell(row, metrics.arithmetic_operation_count);
+            addCell(row, metrics.parallel_phase_product_layer_count);
+            addCell(row, metrics.phase_product_count);
+            addCell(row, metrics.total_operation_count);
+            addCell(row, metrics.point_count);
+            const policyCell = addCell(row, "");
+            policyCell.append(policyLink(policy));
+            if (policy.operations_path) {
+              const operationsButton = document.createElement("button");
+              operationsButton.type = "button";
+              operationsButton.className = "operations-button";
+              operationsButton.textContent = "operations";
+              operationsButton.setAttribute(
+                "aria-label",
+                `View ${displayMode(champion.mode)} k=${champion.k} operations`,
+              );
+              operationsButton.addEventListener("click", () => openOperations(policy, champion));
+              policyCell.append(document.createTextNode(" · "), operationsButton);
+            }
+            body.append(row);
+          }
+        }
+
+        const weights = data.benchmark.weights;
+        const arithmetic = weights.arithmetic_operation_count;
+        const layers = weights.parallel_phase_product_layer_count;
+        document.querySelector("#formula").textContent =
+          `weighted cost = ${weightedTerm(arithmetic, "arithmetic operations")} + ` +
+          weightedTerm(layers, "parallel phase-product layers");
+        document.querySelector("#coverage").textContent =
+          `${data.champions.length} of ${targetCount(data.benchmark)} targets`;
+        document.querySelector("#updated").textContent = new Intl.DateTimeFormat(undefined, {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date(data.generated_at));
+        leaderboardData = data;
+        status.remove();
+        table.hidden = false;
+      }
+
+      fetch("results.json", { cache: "no-store" })
+        .then(response => {
+          if (!response.ok) throw new Error(`Results request failed (${response.status}).`);
+          return response.json();
+        })
+        .then(render)
+        .catch(error => {
+          status.textContent = `Could not load the leaderboard: ${error.message}`;
+        });
+    </script>
+  </body>
+</html>

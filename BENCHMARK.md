@@ -15,6 +15,20 @@ Each handled target receives its own weighted cost:
 weighted_cost = arithmetic_operation_count + 5 * parallel_phase_product_layer_count
 ```
 
+The weight of 5 is a convention, not a derived constant. It sets an exchange
+rate between circuit size and depth: five arithmetic operations for one
+sequential phase-product layer. It has never changed a champion selection,
+because every accepted table at a given arity has the same layer count, so the
+term is a constant offset within a target and this ranking is currently
+identical to ranking by `arithmetic_operation_count`.
+
+This score is width-independent, which is its purpose: it judges a table on its
+own, without reference to an operand size or to any other submission. It is
+**not** the gate count. The two disagree, because an operation count cannot see
+how far a program contracts its operands. See
+[RECURSIVE_COST_MODEL.md](RECURSIVE_COST_MODEL.md) for the gate model and
+`AGENTS.md` for which score to optimize.
+
 There is no combined score: coverage and the vector of per-target costs describe
 a policy. The benchmark records the champion or tied champions for each
 `(mode, k)` target, so different policies may be optimal in different cells.

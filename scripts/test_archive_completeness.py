@@ -28,6 +28,7 @@ is the install set: the two adapters are archived for reconstruction but are
 not installed per policy.
 """
 import importlib.util
+import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -37,6 +38,11 @@ _spec = importlib.util.spec_from_file_location(
 )
 verifier = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(verifier)
+
+# promote.py imports from the `scripts` package, so the repository root has to
+# be importable when this file is run directly rather than as a module.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts import promote  # noqa: E402
 
 
 def _fake_repo(root: Path, extra: dict[str, str] | None = None) -> Path:
@@ -170,6 +176,54 @@ def test_historical_submissions_still_pass():
             assert verifier.is_allowed_changed_file(path), (
                 f"{path} was accepted historically and must remain admissible"
             )
+
+
+def _leaderboard(layer_counts):
+    """Synthetic leaderboard: one champion at k=4 plus challengers."""
+    policies = [
+        {
+            "policy_id": f"{index:040x}",
+            "results": [
+                {
+                    "mode": "PhaseProduct",
+                    "k": 4,
+                    "parallel_phase_product_layer_count": layers,
+                    "arithmetic_operation_count": 26,
+                }
+            ],
+        }
+        for index, layers in enumerate(layer_counts)
+    ]
+    return {
+        "policies": policies,
+        "champions": [
+            {"mode": "PhaseProduct", "k": 4, "policy_ids": [policies[0]["policy_id"]]}
+        ],
+    }
+
+
+def test_catalog_excludes_tables_deeper_than_the_champion():
+    """The gate model charges nothing for depth, so the catalogue bounds it."""
+    targets = [{"mode": "PhaseProduct", "k": 4}]
+    # champion has 3 layers; challengers have 2, 3 and 4.
+    board = _leaderboard([3, 2, 3, 4])
+    kept = {entry["policy_id"] for entry in promote.catalog_entries(board, targets)}
+    shallower, equal, deeper = (
+        board["policies"][1]["policy_id"],
+        board["policies"][2]["policy_id"],
+        board["policies"][3]["policy_id"],
+    )
+    assert shallower in kept, "a shallower table must stay in the catalogue"
+    assert equal in kept, "a table matching the champion's depth must stay"
+    assert deeper not in kept, "a table deeper than the champion must be excluded"
+
+
+def test_catalog_keeps_every_table_at_the_champion_depth():
+    """The bound is a no-op when nothing exceeds it, as in the real archive."""
+    targets = [{"mode": "PhaseProduct", "k": 4}]
+    board = _leaderboard([3, 3, 3])
+    kept = promote.catalog_entries(board, targets)
+    assert len(kept) == 3, "no table at the bound may be dropped"
 
 
 if __name__ == "__main__":

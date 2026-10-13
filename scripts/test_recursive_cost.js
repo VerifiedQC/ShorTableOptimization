@@ -492,9 +492,16 @@ function testLeanDifferential(model = "v3") {
 function testBestKnownDifferential(model = "v3") {
   const api = modelApi(model);
   const candidates = bestKnownCatalog();
-  assert.deepEqual(candidates.map(candidate => candidate.k), [
-    2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-  ]);
+  // The catalog is every accepted PhaseProduct table, so an arity appears once
+  // per policy that handles it. Check coverage and ordering, not a fixed list.
+  const arities = candidates.map(candidate => candidate.k);
+  const expected = Array.from({ length: 15 }, (_, index) => index + 2);
+  assert.deepEqual([...new Set(arities)].sort((a, b) => a - b), expected,
+    "catalog must cover every benchmark arity");
+  assert.deepEqual(arities, [...arities].sort((a, b) => a - b),
+    "catalog must be ordered by arity");
+  assert.ok(candidates.length >= expected.length,
+    "catalog must have at least one table per arity");
   // Dense at the bottom, where Nat truncation in the Cuccaro formulas bites,
   // then every power-of-two boundary through the benchmark range. The paper's
   // reported widths (1024, 2048, 4096, 8192, 16384) are all covered, and the

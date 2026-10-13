@@ -40,12 +40,15 @@ no benchmark targets yet.
 ## Writing a Submission
 
 Replace `implementation` in `TableGeneration/Submission/Policy.lean`. That is
-the only file you need to edit. Helper files may be added anywhere under
-`TableGeneration/Submission/` and imported from `Policy.lean`:
+the only file you need to edit. Helper files may be added at any depth under
+`TableGeneration/Submission/Policy/` and imported from `Policy.lean`:
 
 ```lean
-import TableGeneration.Submission.Helpers
+import TableGeneration.Submission.Policy.Helpers
 ```
+
+A helper directly under `TableGeneration/Submission/` is **rejected**; the
+changed-file check admits `Submission/Policy/` and nothing else beside it.
 
 `implementation : GeneratorPolicy` bundles three things:
 
@@ -98,19 +101,38 @@ the website benchmark data, and an archived source snapshot on the
 90 days. A successful submission PR is closed automatically only after its
 results and source have been archived.
 
-## Scoring and Results
+## Two scores, not one
 
-Submissions are scored independently on each active target they handle. There is
-no combined score across targets. [BENCHMARK.md](BENCHMARK.md) has the current
-targets, weights, metric definitions, and published result formats.
+A submission is measured two different ways, and they do not agree. Read this
+before optimizing anything.
+
+**Per-target score.** Each handled target gets
+`arithmetic_operation_count + 5 * parallel_phase_product_layer_count`. It is
+width-independent, which is the point: it scores a table on its own, without
+reference to any operand size or to any other submission. This decides
+champions and promotion. See [BENCHMARK.md](BENCHMARK.md).
+
+**Gate count.** The recursive planner searches every accepted `PhaseProduct`
+table and reports the lowest logical gate count for an operand width, with
+RSA-2048 as the headline. See
+[RECURSIVE_COST_MODEL.md](RECURSIVE_COST_MODEL.md).
+
+The two disagree because an operation count cannot see how far a program
+**contracts** its operands, and the child width applies to the whole subtree
+below it. At `k = 4` the gate-cheaper table uses 28 operations against 26,
+because it contracts to 533 bits rather than 534.
+
+So a table can lose its target and still lower the gate count. The planner
+searches the full accepted archive rather than the champions, so it will find
+it. If you are optimizing for gates, optimize for gates.
+
+## Results
 
 Results are published on the
-[leaderboard website](https://verifiedqc.github.io/ShorTableOptimization/),
-which also hosts a recursive multiplication planner. Give it an integer bit
-length and it selects among the successfully archived `PhaseProduct` policies at
-each recursion level, then shows the selected steps and their estimated
-logical-gate contributions. [RECURSIVE_COST_MODEL.md](RECURSIVE_COST_MODEL.md)
-describes its scope.
+[leaderboard website](https://verifiedqc.github.io/ShorTableOptimization/).
+The landing page is the RSA-2048 gate count and the plan that achieves it; the
+per-target benchmark is on `targets.html`, linked from it. Both pages let you
+plan any operand width.
 
 Current promoted metrics are in
 [`leaderboard/best-known.md`](leaderboard/best-known.md).

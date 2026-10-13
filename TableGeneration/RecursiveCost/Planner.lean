@@ -1,4 +1,4 @@
-import TableGeneration.RecursiveCost.Catalog
+import TableGeneration.RecursiveCost.ArchivedCatalog
 
 namespace TableGeneration.RecursiveCost
 
@@ -102,33 +102,48 @@ def buildPlanTable
 def findPlan? (plans : List PlanResult) (width : Nat) : Option PlanResult :=
   plans.find? (fun plan => plan.width == width)
 
-/-- Add every unseen, strictly contracting child of `width` to the worklist. -/
+/--
+Add every strictly contracting child of `width` that is not already queued.
+
+`queued` marks a width the moment it enters the worklist, so membership is an
+array read rather than a scan of two lists. Every reachable width is no greater
+than the largest root, so the width itself indexes the array.
+-/
 def enqueueContractingChildren
     (candidates : List Candidate) (width : Nat)
-    (seen pending : List Nat) : List Nat :=
-  candidates.foldl (fun pending candidate =>
+    (queued : Array Bool) (pending : List Nat) : Array Bool × List Nat :=
+  candidates.foldl (fun (state : Array Bool × List Nat) candidate =>
+    let (queued, pending) := state
     let childWidth := (candidate.analyze width).childWidth
-    if childWidth < width &&
-        !seen.contains childWidth && !pending.contains childWidth then
-      childWidth :: pending
+    if childWidth < width && !queued.getD childWidth true then
+      (queued.set! childWidth true, childWidth :: pending)
     else
-      pending) pending
+      (queued, pending)) (queued, pending)
 
 /-- Worklist traversal bounded by the number of widths no greater than the root. -/
 def reachableWidthsAux
     (candidates : List Candidate) :
-    Nat → List Nat → List Nat → List Nat
-  | 0, _, seen => seen
-  | _ + 1, [], seen => seen
-  | fuel + 1, width :: pending, seen =>
-      let pending' := enqueueContractingChildren candidates width seen pending
-      reachableWidthsAux candidates fuel pending' (width :: seen)
+    Nat → List Nat → Array Bool → List Nat → List Nat
+  | 0, _, _, seen => seen
+  | _ + 1, [], _, seen => seen
+  | fuel + 1, width :: pending, queued, seen =>
+      let (queued', pending') :=
+        enqueueContractingChildren candidates width queued pending
+      reachableWidthsAux candidates fuel pending' queued' (width :: seen)
 
-/-- Widths needed to answer all supplied root queries. -/
+/--
+Widths needed to answer all supplied root queries.
+
+Only the set matters: `buildSparsePlans` sorts the result before using it.
+-/
 def reachableWidths
     (candidates : List Candidate) (roots : List Nat) : List Nat :=
   let maxWidth := roots.foldl max 0
-  reachableWidthsAux candidates (maxWidth + 1) roots.eraseDups []
+  let roots := roots.eraseDups
+  let queued :=
+    roots.foldl (fun (queued : Array Bool) root => queued.set! root true)
+      (Array.replicate (maxWidth + 1) false)
+  reachableWidthsAux candidates (maxWidth + 1) roots queued []
 
 /-- Production recurrence using plans for reachable children only. -/
 def chooseAtWidthSparse
@@ -144,16 +159,44 @@ def chooseAtWidthSparse
     else
       current) (PlanResult.base width)
 
+/-- `chooseAtWidthSparse` against a table indexed by width rather than a list. -/
+def chooseAtWidthTable
+    (candidates : List Candidate) (plans : Array (Option PlanResult))
+    (width : Nat) : PlanResult :=
+  candidates.foldl (fun current candidate =>
+    let analysis := candidate.analyze width
+    if analysis.childWidth < width then
+      match plans.getD analysis.childWidth none with
+      | some child =>
+          lowerGateCount (PlanResult.step width candidate analysis child) current
+      | none => current
+    else
+      current) (PlanResult.base width)
+
 /--
 Production planner for widths reachable from `roots`. Sorting them first
 preserves the dense reference recurrence without rescanning every intermediate
 integer width.
+
+Solved widths are held in an array indexed by width, not in a list. A child
+lookup is the inner loop of the recurrence, run once per candidate per width,
+so a linear scan made the planner quadratic in the number of reachable widths.
+`checkDenseSparseAgreement` in the oracle compares this against the dense
+reference planner, which is what holds the two in step.
 -/
 def buildSparsePlans
     (candidates : List Candidate) (roots : List Nat) :
     List PlanResult :=
-  (reachableWidths candidates roots).mergeSort.foldl
-    (fun plans width => chooseAtWidthSparse candidates plans width :: plans) []
+  let widths := (reachableWidths candidates roots).mergeSort
+  let size := widths.foldl max 0 + 1
+  let table :=
+    widths.foldl (fun (plans : Array (Option PlanResult)) width =>
+      plans.set! width (some (chooseAtWidthTable candidates plans width)))
+      (Array.replicate size none)
+  widths.foldl (fun solved width =>
+    match table.getD width none with
+    | some plan => plan :: solved
+    | none => solved) []
 
 /-- Minimum-gate plan at `width` under a model version. -/
 def bestPlan
@@ -161,8 +204,15 @@ def bestPlan
   (findPlan? (buildSparsePlans candidates [width]) width).getD
     (PlanResult.base width)
 
-/-- Minimum-gate plan using the current promoted PhaseProduct catalog. -/
+/--
+Minimum-gate plan over every accepted `PhaseProduct` table.
+
+The search set is `archivedCandidates`, not `bestKnownCandidates`. Champions are
+selected by the leaderboard's structural weighted cost; this planner minimises
+gate count. Those are different objectives, so restricting the search to
+champions can discard the cheapest table at a width.
+-/
 def bestKnownPlan (width : Nat) : PlanResult :=
-  bestPlan bestKnownCandidates width
+  bestPlan archivedCandidates width
 
 end TableGeneration.RecursiveCost
