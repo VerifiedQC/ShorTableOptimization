@@ -24,8 +24,13 @@ def stage(site: Path, results_root: Path, out: Path) -> None:
         raise ValueError("leaderboard schema_version must be 3")
 
     out.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(site / "index.html", out / "index.html")
-    shutil.copyfile(site / "recursive-cost.js", out / "recursive-cost.js")
+    # index.html is the RSA-2048 gate-count board; targets.html is the
+    # per-target structural benchmark it links to. Both share site.css.
+    for name in ("index.html", "targets.html", "site.css", "recursive-cost.js"):
+        source = site / name
+        if not source.is_file():
+            raise ValueError(f"site file is missing: {name}")
+        shutil.copyfile(source, out / name)
     shutil.copyfile(index_path, out / "results.json")
 
     policies = leaderboard.get("policies")
