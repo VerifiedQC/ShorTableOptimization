@@ -6,6 +6,7 @@
     <title>RSA-2048 Gate Count Leaderboard</title>
     <meta name="description"
       content="Lowest known logical gate count for recursive phase multiplication at 2048 bits, from machine-checked tables.">
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="site.css">
   </head>
   <body>
@@ -25,81 +26,60 @@
         </nav>
       </header>
 
-      <section class="planner" aria-labelledby="record-title">
-        <h2 id="record-title">Current record</h2>
-        <p class="planner-status" id="record-status" role="status">Loading verified results…</p>
-        <div id="record-output" hidden>
-          <div class="result-summary" aria-label="Record summary">
-            <div class="result-stat"><span>Logical gates</span><strong id="record-gates">—</strong></div>
-            <div class="result-stat"><span>Recursion levels</span><strong id="record-height">—</strong></div>
-            <div class="result-stat"><span>Recursive calls</span><strong id="record-calls">—</strong></div>
-            <div class="result-stat"><span>Arithmetic operations</span><strong id="record-arithmetic">—</strong></div>
+      <section class="planner" aria-labelledby="board-title">
+        <div class="board-head">
+          <div>
+            <h2 id="board-title">Best known plans</h2>
+            <p class="subtitle">Ranked by logical gate count. Lower is better.</p>
           </div>
-          <h3 class="plan-heading">How the record is built</h3>
-          <p class="plan-intro">
-            One row per level of the recursion. The record is a composite: each
-            level may use a different submitted table, so credit is shared.
-          </p>
-          <ol class="plan-tree" id="record-tree"></ol>
+          <form class="planner-form" id="planner-form">
+            <label>
+              Operand bits (n)
+              <input id="planner-width" name="width" type="number"
+                min="1" step="1" value="2048" required>
+            </label>
+            <button type="submit">Rebuild</button>
+          </form>
+        </div>
+        <p class="planner-status" id="board-status" role="status">Loading verified results\u2026</p>
+        <div class="table-wrap" id="board-wrap" hidden>
+          <table id="board">
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">Logical gates</th>
+                <th scope="col">Top split</th>
+                <th scope="col">Levels</th>
+                <th scope="col">Recursive calls</th>
+                <th scope="col">Arithmetic ops</th>
+                <th scope="col">Tables</th>
+                <th scope="col"></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
         </div>
       </section>
 
       <section class="planner" aria-labelledby="rules-title">
         <h2 id="rules-title">What is being measured</h2>
-        <p class="plan-intro">
-          The ranked quantity is the <strong>logical gate count</strong> of a
-          recursive phase product on two 2048-bit operands. Lower is better.
-        </p>
-        <p class="plan-intro">
-          Costs are charged per operation at the width that operation runs at:
-          an addition costs <code>2 &times; (9w &minus; 16)</code> gates and a
-          negation <code>2 &times; (10w &minus; 14)</code>, each charged twice
-          because one symbolic operation acts on both operands. Shifts are free.
-          The recursion stops at a schoolbook base case costing
-          <code>5w&sup2;</code>. Sign-extension bookkeeping is charged per node.
-        </p>
-        <p class="plan-intro">
-          These are closed-form charges, not a count of a compiled circuit. They
-          match the companion development's circuit-level count wherever that
-          count is computable; it does not run at these widths. Depth is not
-          charged, so a table is ineligible if it is deeper than the current
-          per-target champion at the same arity.
-        </p>
-        <p class="plan-intro">
-          Every table in the plan compiles against a fixed Lean specification
-          with its correctness proofs, and the audit admits
-          <code>propext</code> alone. See the
-          <a href="targets.html">per-target benchmark</a> for how tables are
-          accepted and scored individually.
-        </p>
-      </section>
-
-      <section class="planner" aria-labelledby="planner-title">
-        <h2 id="planner-title">Try another width</h2>
-        <p class="subtitle">The same search at any operand size.</p>
-        <form class="planner-form" id="planner-form">
-          <label>
-            Integer bit length (n)
-            <input id="planner-width" name="width" type="number"
-              min="1" step="1" value="2048" required>
-          </label>
-          <button type="submit">Build plan</button>
-        </form>
-        <p class="planner-status" id="planner-status" role="status"></p>
-        <div class="planner-output" id="planner-output" hidden>
-          <div class="result-summary" aria-label="Plan summary">
-            <div class="result-stat"><span>Logical gates</span><strong id="planner-gates">—</strong></div>
-            <div class="result-stat"><span>Recursion levels</span><strong id="planner-height">—</strong></div>
-            <div class="result-stat"><span>Recursive calls</span><strong id="planner-calls">—</strong></div>
-            <div class="result-stat"><span>Arithmetic operations</span><strong id="planner-arithmetic">—</strong></div>
-          </div>
-          <h3 class="plan-heading">Selected recursion plan</h3>
-          <ol class="plan-tree" id="plan-tree"></ol>
-          <details class="result-json">
-            <summary>Machine-readable result</summary>
-            <pre id="planner-json"></pre>
-          </details>
-        </div>
+        <dl class="rules">
+          <dt>Ranked by</dt>
+          <dd>Logical gates for one phase product on two n-bit operands.</dd>
+          <dt>Charged</dt>
+          <dd><code>2(9w&minus;16)</code> an addition, <code>2(10w&minus;14)</code> a
+            negation, at the width each runs at. Shifts are free. The base case
+            costs <code>5w&sup2;</code>. Sign extension is charged per node.</dd>
+          <dt>Not charged</dt>
+          <dd>Depth. A table deeper than its arity's champion is excluded.</dd>
+          <dt>Not a compiled circuit</dt>
+          <dd>These are closed-form charges. They match the companion's
+            circuit-level count wherever that count runs, which is not at these
+            widths.</dd>
+          <dt>Verified</dt>
+          <dd>Every table compiles against a fixed Lean specification. The axiom
+            audit admits <code>propext</code> alone.</dd>
+        </dl>
       </section>
 
       <footer>
@@ -232,6 +212,7 @@
 
       function planFact(label, value) {
         const fact = document.createElement("div");
+        fact.className = "plan-fact";
         const name = document.createElement("span");
         name.textContent = label;
         const amount = document.createElement("strong");
@@ -240,8 +221,7 @@
         return fact;
       }
 
-      function renderTree(plan, target) {
-        const tree = document.querySelector(target);
+      function renderTree(plan, tree) {
         const policies = new Map(
           leaderboardData.policies.map(policy => [policy.policy_id, policy]),
         );
@@ -312,35 +292,123 @@
         }
       }
 
-      function fill(plan, prefix) {
-        document.querySelector(`#${prefix}-gates`).textContent = count(plan.gateCount);
-        document.querySelector(`#${prefix}-height`).textContent = count(plan.recursionHeight);
-        document.querySelector(`#${prefix}-calls`).textContent = count(plan.totalRecursiveCallCount);
-        document.querySelector(`#${prefix}-arithmetic`).textContent =
-          count(plan.totalArithmeticOperationCount);
+      function tablesIn(plan) {
+        const seen = [];
+        for (const level of RecursiveCost.planLevels(plan)) {
+          if (level.type === "direct") continue;
+          const id = String(level.policyId).slice(0, 8);
+          if (!seen.includes(id)) seen.push(id);
+        }
+        return seen;
       }
 
-      document.querySelector("#planner-form").addEventListener("submit", async event => {
-        event.preventDefault();
-        const status = document.querySelector("#planner-status");
-        const output = document.querySelector("#planner-output");
-        output.hidden = true;
-        status.textContent = "Building the minimum-gate plan…";
-        try {
-          const width = Number(document.querySelector("#planner-width").value);
-          if (!Number.isSafeInteger(width) || width < 1) {
-            throw new Error("Enter a positive whole number of bits.");
-          }
-          const plan = RecursiveCost.bestPlan(await candidates(), width);
-          fill(plan, "planner");
-          renderTree(plan, "#plan-tree");
-          document.querySelector("#planner-json").textContent =
-            JSON.stringify(RecursiveCost.compactPlan(plan), null, 2);
-          status.textContent = `Plan for ${count(width)} bits.`;
-          output.hidden = false;
-        } catch (error) {
-          status.textContent = `Could not build a plan: ${error.message}`;
+      // Every top-level choice, each with the best subtree beneath it.
+      function rankedPlans(cands, width, limit) {
+        const viable = [];
+        for (const candidate of cands) {
+          const analysis = RecursiveCost.analyzeProgram(width, width, candidate);
+          if (analysis.childWidth < width) viable.push({ candidate, analysis });
         }
+        const childWidths = [...new Set(viable.map(v => v.analysis.childWidth))];
+        const solved = new Map();
+        RecursiveCost.bestPlans(cands, childWidths)
+          .forEach((plan, index) => solved.set(childWidths[index], plan));
+        const plans = viable.map(({ candidate, analysis }) =>
+          RecursiveCost.stepPlan(width, candidate, analysis, solved.get(analysis.childWidth)));
+        plans.sort((a, b) =>
+          a.gateCount < b.gateCount ? -1 : a.gateCount > b.gateCount ? 1 : 0);
+        return plans.slice(0, limit);
+      }
+
+      function cell(row, text, className) {
+        const td = document.createElement("td");
+        td.textContent = text;
+        if (className) td.className = className;
+        row.append(td);
+        return td;
+      }
+
+      function renderBoard(plans, width) {
+        const wrap = document.querySelector("#board-wrap");
+        const body = document.querySelector("#board tbody");
+        body.replaceChildren();
+        plans.forEach((plan, index) => {
+          const row = document.createElement("tr");
+          const rank = document.createElement("th");
+          rank.scope = "row";
+          rank.textContent = index + 1;
+          row.append(rank);
+          cell(row, count(plan.gateCount), "score");
+          cell(row, `k=${plan.choice.k} \u2192 ${count(plan.choice.childWidth)} bits`);
+          cell(row, count(plan.recursionHeight));
+          cell(row, count(plan.totalRecursiveCallCount));
+          cell(row, count(plan.totalArithmeticOperationCount));
+          cell(row, tablesIn(plan).join(", "), "policy");
+
+          const toggleCell = document.createElement("td");
+          const toggle = document.createElement("button");
+          toggle.type = "button";
+          toggle.className = "operations-button";
+          toggle.textContent = "show plan";
+          toggle.setAttribute("aria-expanded", "false");
+          toggleCell.append(toggle);
+          row.append(toggleCell);
+
+          const detail = document.createElement("tr");
+          detail.hidden = true;
+          const holder = document.createElement("td");
+          holder.colSpan = 8;
+          const tree = document.createElement("ol");
+          tree.className = "plan-tree";
+          holder.append(tree);
+          detail.append(holder);
+
+          let built = false;
+          toggle.addEventListener("click", () => {
+            const open = detail.hidden;
+            if (open && !built) { renderTree(plan, tree); built = true; }
+            detail.hidden = !open;
+            toggle.textContent = open ? "hide plan" : "show plan";
+            toggle.setAttribute("aria-expanded", String(open));
+          });
+
+          body.append(row, detail);
+        });
+        wrap.hidden = false;
+      }
+
+      async function build(width) {
+        const status = document.querySelector("#board-status");
+        // Remove the old table before computing, so the new one arrives rather
+        // than numbers changing in place.
+        document.querySelector("#board-wrap").hidden = true;
+        document.querySelector("#board tbody").replaceChildren();
+        status.hidden = false;
+        status.textContent = `Building plans for ${count(width)} bits\u2026`;
+        // Let the cleared state paint before computing, so the new table
+        // arrives rather than numbers changing underneath the reader.
+        await new Promise(requestAnimationFrame);
+        try {
+          const plans = rankedPlans(await candidates(), width, 10);
+          if (!plans.length) throw new Error("no table contracts at this width");
+          renderBoard(plans, width);
+          status.textContent =
+            `${plans.length} best plans for ${count(width)} bits. ` +
+            `Record: ${count(plans[0].gateCount)} logical gates.`;
+        } catch (error) {
+          status.textContent = `Could not build plans: ${error.message}`;
+        }
+      }
+
+      document.querySelector("#planner-form").addEventListener("submit", event => {
+        event.preventDefault();
+        const width = Number(document.querySelector("#planner-width").value);
+        if (!Number.isSafeInteger(width) || width < 1) {
+          document.querySelector("#board-status").textContent =
+            "Enter a positive whole number of bits.";
+          return;
+        }
+        build(width);
       });
 
       fetch("results.json", { cache: "no-store" })
@@ -348,23 +416,19 @@
           if (!response.ok) throw new Error(`Results request failed (${response.status}).`);
           return response.json();
         })
-        .then(async data => {
+        .then(data => {
           leaderboardData = data;
           if (data.generated_at) {
             document.querySelector("#updated").textContent =
               new Date(data.generated_at).toLocaleString();
           }
-          const plan = RecursiveCost.bestPlan(await candidates(), RECORD_WIDTH);
-          fill(plan, "record");
-          renderTree(plan, "#record-tree");
-          document.querySelector("#record-status").textContent =
-            `${count(plan.gateCount)} logical gates for a ${count(RECORD_WIDTH)}-bit phase product.`;
-          document.querySelector("#record-output").hidden = false;
+          return build(RECORD_WIDTH);
         })
         .catch(error => {
-          document.querySelector("#record-status").textContent =
-            `Could not load the record: ${error.message}`;
+          document.querySelector("#board-status").textContent =
+            `Could not load results: ${error.message}`;
         });
+
     </script>
   </body>
 </html>
