@@ -345,3 +345,34 @@ footer {
   .plan-step:not(:last-child)::before { background: #465164; }
   .plan-step::after { border-color: #191f29; background: #8eb1ff; box-shadow: 0 0 0 1px #8eb1ff; }
 }
+
+.board-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.board-head .planner-form { margin: 0; }
+
+.rules { margin: 10px 0 0; }
+.rules dt {
+  color: #5b6473;
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-top: 12px;
+}
+.rules dt:first-child { margin-top: 0; }
+.rules dd { margin: 3px 0 0; }
+
+#board tbody tr[hidden] + tr { border-top: 0; }
+#board .plan-tree { margin: 4px 0 8px; }
+#board td[colspan] { background: #f8f9fb; padding: 0 14px; }
+
+@media (prefers-color-scheme: dark) {
+  .rules dt { color: #aab4c3; }
+  #board td[colspan] { background: #202734; }
+}
