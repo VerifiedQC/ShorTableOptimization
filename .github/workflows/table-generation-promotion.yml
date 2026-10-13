@@ -29,6 +29,8 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: write
+      # `publish_promotion.py` opens the promotion pull request itself.
+      pull-requests: write
 
     steps:
       - name: Checkout trusted code
@@ -118,6 +120,9 @@ jobs:
       - name: Publish verified best-known branch
         if: github.event_name != 'pull_request'
         working-directory: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: python3 scripts/ci/publish_promotion.py
 
   # Which paths can change the cost model. A pull request that touches none of
