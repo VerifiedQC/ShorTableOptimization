@@ -40,12 +40,15 @@ no benchmark targets yet.
 ## Writing a Submission
 
 Replace `implementation` in `TableGeneration/Submission/Policy.lean`. That is
-the only file you need to edit. Helper files may be added anywhere under
-`TableGeneration/Submission/` and imported from `Policy.lean`:
+the only file you need to edit. Helper files may be added at any depth under
+`TableGeneration/Submission/Policy/` and imported from `Policy.lean`:
 
 ```lean
-import TableGeneration.Submission.Helpers
+import TableGeneration.Submission.Policy.Helpers
 ```
+
+A helper directly under `TableGeneration/Submission/` is **rejected**; the
+changed-file check admits `Submission/Policy/` and nothing else beside it.
 
 `implementation : GeneratorPolicy` bundles three things:
 
