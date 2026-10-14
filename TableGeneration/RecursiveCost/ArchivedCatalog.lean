@@ -1,9 +1,18 @@
 import TableGeneration.RecursiveCost.Catalog
 import TableGeneration.Policies.Accepted.P0c074ebe3b35
+import TableGeneration.Policies.Accepted.P293d51de2c05
 import TableGeneration.Policies.Accepted.P2a0c1db7342f
 import TableGeneration.Policies.Accepted.P348de30a1f93
+import TableGeneration.Policies.Accepted.P546fea33a7a4
+import TableGeneration.Policies.Accepted.P54f51b9656d0
 import TableGeneration.Policies.Accepted.P58147b7627fb
+import TableGeneration.Policies.Accepted.P5e83e2c00c17
+import TableGeneration.Policies.Accepted.P651fc8ae389d
+import TableGeneration.Policies.Accepted.P6c185db801f9
 import TableGeneration.Policies.Accepted.P6f7d25984ff8
+import TableGeneration.Policies.Accepted.P7ec7497794d4
+import TableGeneration.Policies.Accepted.P9d8a1554c43b
+import TableGeneration.Policies.Accepted.Pe5ba65062178
 import TableGeneration.Policies.Accepted.Pf0f15fefe959
 import TableGeneration.Policies.Accepted.Pf4aff955f16b
 import TableGeneration.Policies.Accepted.Pfd41c2aa4b3e
@@ -31,10 +40,20 @@ def archivedCandidates : List Candidate :=
     , hk := by decide
     , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
         .PhaseProduct 2 (by decide) }
+  , { policyId := "5e83e2c00c1746efad6190fea73343e6858e62b0"
+    , k := 3
+    , hk := by decide
+    , program := Policies.Accepted.P5e83e2c00c17.implementation.generate
+        .PhaseProduct 3 (by decide) }
   , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
     , k := 3
     , hk := by decide
     , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 3 (by decide) }
+  , { policyId := "9d8a1554c43b306e815d3f71d14c07cfe50f401b"
+    , k := 3
+    , hk := by decide
+    , program := Policies.Accepted.P9d8a1554c43b.implementation.generate
         .PhaseProduct 3 (by decide) }
   , { policyId := "f0f15fefe9593f566707b431959eeb845db93f4f"
     , k := 3
@@ -46,6 +65,11 @@ def archivedCandidates : List Candidate :=
     , hk := by decide
     , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
         .PhaseProduct 3 (by decide) }
+  , { policyId := "546fea33a7a477abdafb36d69e3d606b8fe23d8f"
+    , k := 4
+    , hk := by decide
+    , program := Policies.Accepted.P546fea33a7a4.implementation.generate
+        .PhaseProduct 4 (by decide) }
   , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
     , k := 4
     , hk := by decide
@@ -81,15 +105,40 @@ def archivedCandidates : List Candidate :=
     , hk := by decide
     , program := Policies.Accepted.P0c074ebe3b35.implementation.generate
         .PhaseProduct 6 (by decide) }
+  , { policyId := "293d51de2c056820c5d2e8a7b7db8a8648d5ecec"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.P293d51de2c05.implementation.generate
+        .PhaseProduct 6 (by decide) }
+  , { policyId := "54f51b9656d02ee8df86c1b183846ac1bd0f9a62"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.P54f51b9656d0.implementation.generate
+        .PhaseProduct 6 (by decide) }
   , { policyId := "58147b7627fb7d666e10d784b26f290754e3987b"
     , k := 6
     , hk := by decide
     , program := Policies.Accepted.P58147b7627fb.implementation.generate
         .PhaseProduct 6 (by decide) }
+  , { policyId := "6c185db801f9d78b7108a84e491ff0406348c47c"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.P6c185db801f9.implementation.generate
+        .PhaseProduct 6 (by decide) }
   , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
     , k := 6
     , hk := by decide
     , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 6 (by decide) }
+  , { policyId := "7ec7497794d46ac90bc81592fd8d2131e25f9f9b"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.P7ec7497794d4.implementation.generate
+        .PhaseProduct 6 (by decide) }
+  , { policyId := "e5ba65062178996e36480511f7cc6800ec73e7b8"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.Pe5ba65062178.implementation.generate
         .PhaseProduct 6 (by decide) }
   , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
     , k := 6
@@ -269,10 +318,25 @@ def archivedCandidatesUnbounded : List Candidate :=
     , hk := by decide
     , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
         .PhaseProduct 2 (by decide) }
+  , { policyId := "5e83e2c00c1746efad6190fea73343e6858e62b0"
+    , k := 3
+    , hk := by decide
+    , program := Policies.Accepted.P5e83e2c00c17.implementation.generate
+        .PhaseProduct 3 (by decide) }
+  , { policyId := "651fc8ae389da470cb23e88ccf2195131e51c9ba"
+    , k := 3
+    , hk := by decide
+    , program := Policies.Accepted.P651fc8ae389d.implementation.generate
+        .PhaseProduct 3 (by decide) }
   , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
     , k := 3
     , hk := by decide
     , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 3 (by decide) }
+  , { policyId := "9d8a1554c43b306e815d3f71d14c07cfe50f401b"
+    , k := 3
+    , hk := by decide
+    , program := Policies.Accepted.P9d8a1554c43b.implementation.generate
         .PhaseProduct 3 (by decide) }
   , { policyId := "f0f15fefe9593f566707b431959eeb845db93f4f"
     , k := 3
@@ -284,6 +348,11 @@ def archivedCandidatesUnbounded : List Candidate :=
     , hk := by decide
     , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
         .PhaseProduct 3 (by decide) }
+  , { policyId := "546fea33a7a477abdafb36d69e3d606b8fe23d8f"
+    , k := 4
+    , hk := by decide
+    , program := Policies.Accepted.P546fea33a7a4.implementation.generate
+        .PhaseProduct 4 (by decide) }
   , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
     , k := 4
     , hk := by decide
@@ -319,15 +388,40 @@ def archivedCandidatesUnbounded : List Candidate :=
     , hk := by decide
     , program := Policies.Accepted.P0c074ebe3b35.implementation.generate
         .PhaseProduct 6 (by decide) }
+  , { policyId := "293d51de2c056820c5d2e8a7b7db8a8648d5ecec"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.P293d51de2c05.implementation.generate
+        .PhaseProduct 6 (by decide) }
+  , { policyId := "54f51b9656d02ee8df86c1b183846ac1bd0f9a62"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.P54f51b9656d0.implementation.generate
+        .PhaseProduct 6 (by decide) }
   , { policyId := "58147b7627fb7d666e10d784b26f290754e3987b"
     , k := 6
     , hk := by decide
     , program := Policies.Accepted.P58147b7627fb.implementation.generate
         .PhaseProduct 6 (by decide) }
+  , { policyId := "6c185db801f9d78b7108a84e491ff0406348c47c"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.P6c185db801f9.implementation.generate
+        .PhaseProduct 6 (by decide) }
   , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
     , k := 6
     , hk := by decide
     , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 6 (by decide) }
+  , { policyId := "7ec7497794d46ac90bc81592fd8d2131e25f9f9b"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.P7ec7497794d4.implementation.generate
+        .PhaseProduct 6 (by decide) }
+  , { policyId := "e5ba65062178996e36480511f7cc6800ec73e7b8"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.Pe5ba65062178.implementation.generate
         .PhaseProduct 6 (by decide) }
   , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
     , k := 6
