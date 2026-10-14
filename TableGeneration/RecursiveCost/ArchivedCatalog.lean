@@ -20,10 +20,250 @@ Every accepted `PhaseProduct` table, as planner candidates.
 `bestKnownCandidates` holds one champion per arity, chosen by the
 leaderboard's structural weighted cost. The planner ranks by gate count,
 which is a different objective, so a table that lost its champion slot can
-still be the cheapest choice at some width. This list is the whole accepted
-set and is what the planner searches.
+still be the cheapest choice at some width. This list is every accepted
+table that is within the champion's layer bound at its arity, and is what
+the planner searches. For the set without that bound, which is what the
+leaderboard site plans over, see `archivedCandidatesUnbounded` below.
 -/
 def archivedCandidates : List Candidate :=
+  [ { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 2
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 2 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 3
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 3 (by decide) }
+  , { policyId := "f0f15fefe9593f566707b431959eeb845db93f4f"
+    , k := 3
+    , hk := by decide
+    , program := Policies.Accepted.Pf0f15fefe959.implementation.generate
+        .PhaseProduct 3 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 3
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 3 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 4
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 4 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 4
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 4 (by decide) }
+  , { policyId := "2a0c1db7342f6731447037ba3de30a32911f7eb1"
+    , k := 5
+    , hk := by decide
+    , program := Policies.Accepted.P2a0c1db7342f.implementation.generate
+        .PhaseProduct 5 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 5
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 5 (by decide) }
+  , { policyId := "f0f15fefe9593f566707b431959eeb845db93f4f"
+    , k := 5
+    , hk := by decide
+    , program := Policies.Accepted.Pf0f15fefe959.implementation.generate
+        .PhaseProduct 5 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 5
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 5 (by decide) }
+  , { policyId := "0c074ebe3b3586901a591f3b5e79096d820adc55"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.P0c074ebe3b35.implementation.generate
+        .PhaseProduct 6 (by decide) }
+  , { policyId := "58147b7627fb7d666e10d784b26f290754e3987b"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.P58147b7627fb.implementation.generate
+        .PhaseProduct 6 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 6 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 6 (by decide) }
+  , { policyId := "fd41c2aa4b3e2f537588114e05494dd1b0600e76"
+    , k := 6
+    , hk := by decide
+    , program := Policies.Accepted.Pfd41c2aa4b3e.implementation.generate
+        .PhaseProduct 6 (by decide) }
+  , { policyId := "348de30a1f9385a22445507dac9dde4aad3a83a7"
+    , k := 7
+    , hk := by decide
+    , program := Policies.Accepted.P348de30a1f93.implementation.generate
+        .PhaseProduct 7 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 7
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 7 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 7
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 7 (by decide) }
+  , { policyId := "348de30a1f9385a22445507dac9dde4aad3a83a7"
+    , k := 8
+    , hk := by decide
+    , program := Policies.Accepted.P348de30a1f93.implementation.generate
+        .PhaseProduct 8 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 8
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 8 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 8
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 8 (by decide) }
+  , { policyId := "348de30a1f9385a22445507dac9dde4aad3a83a7"
+    , k := 9
+    , hk := by decide
+    , program := Policies.Accepted.P348de30a1f93.implementation.generate
+        .PhaseProduct 9 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 9
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 9 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 9
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 9 (by decide) }
+  , { policyId := "348de30a1f9385a22445507dac9dde4aad3a83a7"
+    , k := 10
+    , hk := by decide
+    , program := Policies.Accepted.P348de30a1f93.implementation.generate
+        .PhaseProduct 10 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 10
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 10 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 10
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 10 (by decide) }
+  , { policyId := "348de30a1f9385a22445507dac9dde4aad3a83a7"
+    , k := 11
+    , hk := by decide
+    , program := Policies.Accepted.P348de30a1f93.implementation.generate
+        .PhaseProduct 11 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 11
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 11 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 11
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 11 (by decide) }
+  , { policyId := "348de30a1f9385a22445507dac9dde4aad3a83a7"
+    , k := 12
+    , hk := by decide
+    , program := Policies.Accepted.P348de30a1f93.implementation.generate
+        .PhaseProduct 12 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 12
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 12 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 12
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 12 (by decide) }
+  , { policyId := "348de30a1f9385a22445507dac9dde4aad3a83a7"
+    , k := 13
+    , hk := by decide
+    , program := Policies.Accepted.P348de30a1f93.implementation.generate
+        .PhaseProduct 13 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 13
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 13 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 13
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 13 (by decide) }
+  , { policyId := "348de30a1f9385a22445507dac9dde4aad3a83a7"
+    , k := 14
+    , hk := by decide
+    , program := Policies.Accepted.P348de30a1f93.implementation.generate
+        .PhaseProduct 14 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 14
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 14 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 14
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 14 (by decide) }
+  , { policyId := "348de30a1f9385a22445507dac9dde4aad3a83a7"
+    , k := 15
+    , hk := by decide
+    , program := Policies.Accepted.P348de30a1f93.implementation.generate
+        .PhaseProduct 15 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 15
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 15 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 15
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 15 (by decide) }
+  , { policyId := "348de30a1f9385a22445507dac9dde4aad3a83a7"
+    , k := 16
+    , hk := by decide
+    , program := Policies.Accepted.P348de30a1f93.implementation.generate
+        .PhaseProduct 16 (by decide) }
+  , { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
+    , k := 16
+    , hk := by decide
+    , program := Policies.Accepted.P6f7d25984ff8.implementation.generate
+        .PhaseProduct 16 (by decide) }
+  , { policyId := "f4aff955f16b6cb82982e2550b34ebc29c6992b1"
+    , k := 16
+    , hk := by decide
+    , program := Policies.Accepted.Pf4aff955f16b.implementation.generate
+        .PhaseProduct 16 (by decide) }
+  ]
+
+/--
+The same set with the champion layer bound lifted.
+
+`promote.py` drops candidates deeper than the champion at their arity, so
+`archivedCandidates` is a subset of the accepted tables. The leaderboard
+site applies no such bound: it plans over every accepted `PhaseProduct`
+table in `results.json`. Without this list the two cannot be compared, and
+the published gate count would rest on tables the Lean/JS differential
+never sees.
+-/
+def archivedCandidatesUnbounded : List Candidate :=
   [ { policyId := "6f7d25984ff8f4db772a7449c097a6e16098f8be"
     , k := 2
     , hk := by decide
