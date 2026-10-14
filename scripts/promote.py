@@ -248,16 +248,20 @@ def champion_layer_bound(leaderboard: dict[str, Any]) -> dict[int, int]:
 def catalog_entries(
     leaderboard: dict[str, Any],
     config_targets: list[dict[str, Any]],
+    *,
+    bound_layers: bool = True,
 ) -> list[dict[str, Any]]:
     """Every accepted PhaseProduct table, champion or not, as planner candidates.
 
-    Candidates deeper than the champion at the same arity are excluded; see
-    `champion_layer_bound`.
+    With `bound_layers` (the default), candidates deeper than the champion at
+    the same arity are excluded; see `champion_layer_bound`. With it off, the
+    whole accepted set comes back. The website plans over the unbounded set, so
+    the oracle needs to be able to as well, or the two cannot be compared.
     """
     configured = {
         target["k"] for target in config_targets if target["mode"] == CATALOG_MODE
     }
-    layer_bound = champion_layer_bound(leaderboard)
+    layer_bound = champion_layer_bound(leaderboard) if bound_layers else {}
     entries: list[dict[str, Any]] = []
     for policy in leaderboard.get("policies", []):
         policy_id = policy.get("policy_id")
@@ -293,8 +297,33 @@ def catalog_entries(
     return entries
 
 
-def generate_archived_catalog(repo: Path, entries: list[dict[str, Any]]) -> None:
-    modules = sorted({entry["module_id"] for entry in entries})
+def _candidate_lines(entries: list[dict[str, Any]], name: str) -> list[str]:
+    lines = [f"def {name} : List Candidate :="]
+    if not entries:
+        lines.append("  []")
+        return lines
+    for index, entry in enumerate(entries):
+        opener = "  [ " if index == 0 else "  , "
+        accepted = f"Policies.Accepted.{entry['module_id']}"
+        lines.append(f"{opener}{{ policyId := {json.dumps(entry['policy_id'])}")
+        lines.append(f"    , k := {entry['k']}")
+        lines.append("    , hk := by decide")
+        lines.append(f"    , program := {accepted}.implementation.generate")
+        lines.append(f"        .{CATALOG_MODE} {entry['k']} (by decide) }}")
+    lines.append("  ]")
+    return lines
+
+
+def generate_archived_catalog(
+    repo: Path,
+    entries: list[dict[str, Any]],
+    unbounded: list[dict[str, Any]] | None = None,
+) -> None:
+    unbounded = entries if unbounded is None else unbounded
+    modules = sorted(
+        {entry["module_id"] for entry in entries}
+        | {entry["module_id"] for entry in unbounded}
+    )
     lines = ["import TableGeneration.RecursiveCost.Catalog"]
     lines.extend(
         f"import TableGeneration.Policies.Accepted.{module}" for module in modules
@@ -314,28 +343,30 @@ def generate_archived_catalog(repo: Path, entries: list[dict[str, Any]]) -> None
             "`bestKnownCandidates` holds one champion per arity, chosen by the",
             "leaderboard's structural weighted cost. The planner ranks by gate count,",
             "which is a different objective, so a table that lost its champion slot can",
-            "still be the cheapest choice at some width. This list is the whole accepted",
-            "set and is what the planner searches.",
+            "still be the cheapest choice at some width. This list is every accepted",
+            "table that is within the champion's layer bound at its arity, and is what",
+            "the planner searches. For the set without that bound, which is what the",
+            "leaderboard site plans over, see `archivedCandidatesUnbounded` below.",
             "-/",
-            "def archivedCandidates : List Candidate :=",
         ]
     )
-    if entries:
-        for index, entry in enumerate(entries):
-            opener = "  [ " if index == 0 else "  , "
-            accepted = f"Policies.Accepted.{entry['module_id']}"
-            lines.append(f"{opener}{{ policyId := {json.dumps(entry['policy_id'])}")
-            lines.append(f"    , k := {entry['k']}")
-            lines.append("    , hk := by decide")
-            lines.append(
-                f"    , program := {accepted}.implementation.generate"
-            )
-            lines.append(
-                f"        .{CATALOG_MODE} {entry['k']} (by decide) }}"
-            )
-        lines.append("  ]")
-    else:
-        lines.append("  []")
+    lines.extend(_candidate_lines(entries, "archivedCandidates"))
+    lines.extend(
+        [
+            "",
+            "/--",
+            "The same set with the champion layer bound lifted.",
+            "",
+            "`promote.py` drops candidates deeper than the champion at their arity, so",
+            "`archivedCandidates` is a subset of the accepted tables. The leaderboard",
+            "site applies no such bound: it plans over every accepted `PhaseProduct`",
+            "table in `results.json`. Without this list the two cannot be compared, and",
+            "the published gate count would rest on tables the Lean/JS differential",
+            "never sees.",
+            "-/",
+        ]
+    )
+    lines.extend(_candidate_lines(unbounded, "archivedCandidatesUnbounded"))
     lines.extend(["", "end TableGeneration.RecursiveCost", ""])
     (repo / ARCHIVED_CATALOG_PATH).write_text("\n".join(lines), encoding="utf-8")
 
@@ -454,8 +485,9 @@ def construct(
 ) -> list[dict[str, Any]]:
     selections = selected_champions(leaderboard, config_targets)
     entries = catalog_entries(leaderboard, config_targets)
+    unbounded = catalog_entries(leaderboard, config_targets, bound_layers=False)
     module_ids: dict[str, str] = {}
-    for record in [*selections, *entries]:
+    for record in [*selections, *unbounded]:
         previous = module_ids.setdefault(record["module_id"], record["policy_id"])
         if previous != record["policy_id"]:
             raise ValueError("promoted policy identifiers have a module-name collision")
@@ -465,12 +497,12 @@ def construct(
     installed: set[str] = set()
     # Champions first, then any catalog-only policy: the planner searches tables
     # that never won a target, so their modules have to be installed too.
-    for record in [*selections, *entries]:
+    for record in [*selections, *unbounded]:
         if record["policy_id"] not in installed:
             install_policy(repo, results_root, record)
             installed.add(record["policy_id"])
     generate_best_known(repo, selections)
-    generate_archived_catalog(repo, entries)
+    generate_archived_catalog(repo, entries, unbounded)
     generate_best_known_report(repo, selections, len(config_targets))
     return selections
 

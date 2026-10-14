@@ -354,6 +354,51 @@ function bestKnownCatalog() {
   });
 }
 
+// The site's candidate set: every accepted PhaseProduct table, with no layer
+// bound. `bestKnownCatalog` returns the promoted subset instead, so a table
+// `promote.py` excludes is invisible to every check built on it -- including
+// the one table the published gate count currently depends on.
+function unboundedCatalog() {
+  return runLeanOracle(["--catalog-unbounded"]).map(line => {
+    const [marker, policyId, rawK, rawOperations] = line.split("\t");
+    assert.equal(marker, "candidate");
+    const operations = rawOperations === "" ? [] : rawOperations.split(";").map(encoded => {
+      const [name, ...values] = encoded.split(",");
+      return [name, ...values.map(Number)];
+    });
+    return { policyId, k: Number(rawK), operations };
+  });
+}
+
+// What the leaderboard page publishes is computed in the browser, by the JS
+// planner, over the unbounded set. Nothing else in this suite costs that set in
+// Lean, so without this the headline number is unchecked.
+function testPublishedNumberDifferential(model = "v3") {
+  const api = modelApi(model);
+  const candidates = unboundedCatalog();
+  const bounded = bestKnownCatalog();
+  assert.ok(candidates.length >= bounded.length,
+    "the unbounded catalog cannot be smaller than the promoted one");
+  const widths = [1024, 2048, 4096, 8192, 16384];
+  const lean = leanPlans(widths, "--best-known-unbounded", model);
+  const plans = api.bestPlans(candidates, widths);
+  lean.forEach((expected, index) => {
+    const width = widths[index];
+    const actual = plans[index];
+    const choice = actual.choice === null
+      ? "base"
+      : `${actual.choice.k}:${actual.choice.childWidth}:${actual.choice.policyId}`;
+    assert.deepEqual(expected, {
+      width: String(width),
+      gates: String(actual.gateCount),
+      height: String(actual.recursionHeight),
+      calls: String(actual.totalRecursiveCallCount),
+      arithmetic: String(actual.totalArithmeticOperationCount),
+      choice,
+    }, `published plan at ${width} must agree between Lean and JS`);
+  });
+}
+
 function testBalancedReferenceAgreement() {
   const widths = Array.from({ length: 65 }, (_, index) => index);
   const lines = runLeanOracle(["--reference", ...widths.map(String)]);
@@ -554,6 +599,7 @@ async function main() {
     testDenseSparseAgreement(model);
     testLeanDifferential(model);
     testBestKnownDifferential(model);
+    testPublishedNumberDifferential(model);
   }
   console.log(`recursive cost tests passed (${MODELS.join(", ")})`);
 }
