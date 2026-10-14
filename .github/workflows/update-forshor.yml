@@ -6,19 +6,31 @@ name: Update ForShor
 # workflow.
 #
 # It pushes to `main` without review, which is safe only because it refuses to
-# push unless the planner still reports the same totals. Those five numbers are
-# the Lean catalogue's: `bestKnownCandidates` is one promoted program per `k`,
-# so the plan is over the fifteen champions. They are the one thing a dependency
-# bump can move silently here. `test_recursive_cost.js` compares Lean against
-# JavaScript on that same candidate set, and both derive from the same Lean
-# model, so they drift together and stay equal. If the totals move, the job
-# fails and leaves `main` alone -- that bump is a decision, not a chore.
+# push unless the companion's cost model is unchanged. That is what
+# `scripts/tests/companion-cost-model.tsv` pins: the primitive gate costs, the
+# allocation costs and the width transitions, which is everything the planner
+# reads from the companion. If any of it moves, the job fails and leaves `main`
+# alone -- that bump is a decision, not a chore.
 #
-# What this does NOT cover: the write-up's appendix plans over the full archive
-# rather than the champions, which differs at 1024 and 4096 bits. That planner
-# is `archivedPhaseProductCandidates` in `leaderboard/site/recursive-cost.js`
-# and reads archive data this repo does not carry, so it cannot run here. Check
-# those two figures by hand when the cost model changes.
+# The gate deliberately does NOT pin planner totals. Totals are a function of
+# the accepted archive as well as the cost model, so promoting a table moves
+# them; a gate pinned to them fails on every run after a promotion and points
+# at the companion, which did not change. That is exactly what happened between
+# 2026-10-13 and 2026-10-14. The snapshot below plans over nothing, so only the
+# companion can move it.
+#
+# `test_recursive_cost.js` cannot serve as this gate: it compares Lean against
+# JavaScript, and the JavaScript mirrors the Lean model, so a companion change
+# moves both sides together and the comparison stays equal.
+#
+# Regenerate after an intentional companion cost-model change:
+#
+#   lake env lean --run scripts/tests/RecursiveCostOracle.lean \
+#     --model=v3 --costs 3 8 64 1024 2048 \
+#     > scripts/tests/companion-cost-model.tsv
+#   lake env lean --run scripts/tests/RecursiveCostOracle.lean \
+#     --model=v3 --reference 64 1024 2048 4096 8192 16384 \
+#     >> scripts/tests/companion-cost-model.tsv
 
 on:
   schedule:
@@ -79,29 +91,24 @@ jobs:
         if: steps.update.outputs.changed == 'true'
         run: node scripts/test_recursive_cost.js
 
-      # The gate. These are the full-archive totals the shipped Lean catalogue
-      # reproduces, and the figures the write-up quotes; if the companion
-      # changed the cost model they move, and this bump stops being routine.
-      - name: Planner totals unchanged
+      # The gate. Everything the planner reads from the companion: primitive
+      # gate costs, allocation costs, width transitions. Archive-independent by
+      # construction, so a promotion cannot make it stale.
+      - name: Companion cost model unchanged
         if: steps.update.outputs.changed == 'true'
         run: |
           set -euo pipefail
-          expected=$(cat <<'TOTALS'
-          1024	1798136
-          2048	5009071
-          4096	12803453
-          8192	32277696
-          16384	79971062
-          TOTALS
-          )
-          actual=$(lake env lean --run scripts/tests/RecursiveCostOracle.lean \
-            --model=v3 --best-known 1024 2048 4096 8192 16384 | cut -f1,2)
-          if [ "$(echo "$expected" | sed 's/^ *//')" != "$actual" ]; then
-            echo "::error::Planner totals changed. Not pushing."
-            diff <(echo "$expected" | sed 's/^ *//') <(echo "$actual") || true
+          {
+            lake env lean --run scripts/tests/RecursiveCostOracle.lean \
+              --model=v3 --costs 3 8 64 1024 2048
+            lake env lean --run scripts/tests/RecursiveCostOracle.lean \
+              --model=v3 --reference 64 1024 2048 4096 8192 16384
+          } > /tmp/companion-actual.tsv
+          if ! diff -u scripts/tests/companion-cost-model.tsv /tmp/companion-actual.tsv; then
+            echo "::error::The companion's cost model changed. Not pushing. Decide whether the change is wanted, re-measure the planner totals, then regenerate scripts/tests/companion-cost-model.tsv in a reviewed PR."
             exit 1
           fi
-          echo "Totals unchanged."
+          echo "Companion cost model unchanged."
 
       - name: Commit
         if: steps.update.outputs.changed == 'true'
