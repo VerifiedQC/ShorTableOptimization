@@ -105,8 +105,18 @@ def open_pull_request() -> None:
         capture=True,
         check=False,
     ).strip()
-    print(f"Opened promotion pull request: {created}" if created
-          else "Could not open the promotion pull request; open it by hand.")
+    # `gh` prints its diagnostics on stdout and this call does not raise, so a
+    # non-empty result is not success. Only a URL is.
+    if created.startswith("https://"):
+        print(f"Opened promotion pull request: {created}")
+        return
+    print(f"Could not open the promotion pull request: {created or 'no output'}")
+    print(f"Open it by hand: {compare_url() or BRANCH}")
+    if "not permitted to create or approve pull requests" in created:
+        print(
+            "Settings > Actions > General > Workflow permissions: enable "
+            "'Allow GitHub Actions to create and approve pull requests'."
+        )
 
 
 def report_branch() -> None:
