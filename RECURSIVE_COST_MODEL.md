@@ -113,11 +113,22 @@ these are the figures the write-up quotes:
     lake env lean --run scripts/tests/RecursiveCostOracle.lean \
       --model=v3 --best-known 1024 2048 4096 8192 16384
 
-    1024   1798136   4    280    210
-    2048   5009071   4    594    502
-    4096   12803453  4    1012   988
-    8192   32277696  5    4693   3692
-    16384  79971062  5    10115  8689
+    1024   1649629   3    147    213
+    2048   4343539   4    726    689
+    4096   11330660  4    1628   2427
+    8192   28618144  4    3016   4888
+    16384  71324077  4    4872   7984
+
+(width, gates, recursion height, recursive calls, arithmetic operations; the
+command also prints a trailing `k:childWidth:policy` column, omitted here.)
+These are the totals at `545cf76`, after the October 2026 promotion. They move
+whenever a table is accepted that the planner prefers, so a mismatch is not by
+itself a model change -- check `git log leaderboard/best-known.md` and the
+archive before concluding the cost model moved. `--best-known-unbounded`
+currently reports the same five gate totals and the same `k` chain; it reports a
+lower arithmetic-operation count, because several plans reach the same gate cost
+and the two searches break that tie differently. The agreement on gates is not
+guaranteed -- see the two-catalogue note below.
 
 The Lean/JS differential (`node scripts/test_recursive_cost.js`) will not catch
 a change here: both sides derive from the same Lean model, so they move
@@ -263,6 +274,35 @@ In ForShor-conformance mode, all recursive calls at a node use the common padded
 child width. In branch-sensitive mode, each call may have its own width and may
 select a different `k` and policy.
 
+### Which tables are eligible: two catalogues
+
+"Eligible" is decided by `scripts/promote.py`, which writes two lists into
+`TableGeneration/RecursiveCost/ArchivedCatalog.lean`:
+
+- `archivedCandidates` applies a **layer bound**: a table deeper than the
+  current per-target champion at the same arity is dropped. The gate model
+  charges nothing for layers, so without this a table could buy gates with depth
+  for free.
+- `archivedCandidatesUnbounded` is every accepted `PhaseProduct` table, bound or
+  not.
+
+The Lean planner reads the bounded list by default and the unbounded one under
+`--catalog-unbounded` / `--best-known-unbounded`. **The website reads the
+unbounded set.** It fetches `results.json` and filters on product mode alone; it
+never sees the bound, because the bound lives in the generated Lean catalogue
+and the site does not read Lean.
+
+So the two can disagree, and in October 2026 they did, by 455,436 gates at 2048
+bits, after a `k=3` table with four layers was accepted. They agree again now,
+for a reason that is not a guarantee: a two-layer table reaching the same child
+width was accepted afterwards, so the bound currently costs nothing. Treat
+agreement as something to check, not something to assume, and read
+`--best-known-unbounded` as the published number.
+
+`scripts/test_recursive_cost.js` checks exactly this: `testPublishedNumberDifferential`
+plans over the unbounded catalogue in both Lean and JavaScript at 1024, 2048,
+4096, 8192 and 16384 and requires the whole plan to match.
+
 ## Initial Metrics
 
 The first implementation optimizes logical gate count and reports a few
@@ -348,7 +388,9 @@ CI checks:
 - exact agreement between the Lean reference and the shared browser/Node
   implementation over exhaustive, boundary, and seeded-random bit lengths;
 - plan-construction checks for representative inputs including
-  `16`, `2048`, and `4096`.
+  `16`, `2048`, and `4096`;
+- whole-plan agreement between Lean and the browser calculator over the
+  unbounded catalogue, which is the set the published number is planned over.
 
 The model version and objective must be included in published results so that a
 future ForShor cost-model change does not silently reinterpret old estimates.

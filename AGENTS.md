@@ -78,11 +78,17 @@ If your goal is gate count:
   accepted `PhaseProduct` table, not just the champions.
 - Do not buy gates with depth. The gate model charges nothing for layers, so
   adding sequential stages to save arithmetic would otherwise be free. A
-  candidate deeper than the current champion at the same arity is excluded from
-  the planner's catalogue.
-- Measure before submitting:
+  candidate deeper than the current champion at the same arity is kept out of
+  `archivedCandidates`, the bounded catalogue the Lean planner searches by
+  default. It is still archived, and it still reaches the website, which plans
+  over `archivedCandidatesUnbounded`. So a deeper table can move the published
+  number while the Lean default says it changed nothing; see
+  [RECURSIVE_COST_MODEL.md](RECURSIVE_COST_MODEL.md) for which catalogue is
+  which.
+- Measure before submitting, both ways. They should agree; when they do not, the
+  second is what the site will report:
   `lake env lean --run scripts/tests/RecursiveCostOracle.lean --model=v3
-  --best-known 2048`.
+  --best-known 2048` and the same command with `--best-known-unbounded`.
 
 Only `PhaseProduct` reaches the planner. `PhaseTripleProduct` has no gate model,
 so those targets are scored structurally and never priced in gates.
@@ -110,7 +116,8 @@ so those targets are scored structurally and never priced in gates.
 - Run `lake build TableGeneration` after Lean changes.
 - Run `node scripts/test_recursive_cost.js` after recursive planner or website
   calculator changes. It compares the Lean and JavaScript cost models exactly,
-  over every accepted table, and takes a few minutes.
+  over every accepted table, and separately checks that the two agree on the
+  published plan over the unbounded catalogue. Takes a few minutes.
 - CI runs `scripts/verifier.py` automatically for submission PRs.
 - For local verification while changing the verifier or template, run
   `python3 scripts/verifier.py --out-dir artifacts`.
