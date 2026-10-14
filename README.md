@@ -141,11 +141,13 @@ Current promoted metrics are in
 
 When a result becomes a per-target champion, trusted automation constructs the
 complete best-known generator, rebuilds Lean, audits the target proofs,
-reproduces the metrics, and updates `automation/best-known`. Its workflow
-summary links to the
+reproduces the metrics, and updates `automation/best-known`. It then tries to
+open the pull request itself, and falls back to linking the
 [comparison for creating a PR](https://github.com/VerifiedQC/ShorTableOptimization/compare/main...automation/best-known?expand=1)
-for manual review and merging into `main`. Automation never pushes to `main`
-directly.
+in its workflow summary. The fallback is what happens today: opening the PR
+needs *Settings -> Actions -> General -> Workflow permissions -> allow GitHub
+Actions to create and approve pull requests*, which is off. A maintainer reviews
+and merges either way; automation never pushes to `main` directly.
 
 ## Repository Layout
 
