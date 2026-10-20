@@ -93,6 +93,15 @@ def main() -> int:
         ]
     )
     run(["git", "add", "--", *paths])
+    # Deliberately no `[skip ci]`, unlike the ForShor bump. Promotion rewrites
+    # `TableGeneration/**`, so the push has to reach `lean-build-cache.yml`,
+    # which refreshes the shared build cache, and `sync-submission-template.yml`,
+    # which fast-forwards the branch submitters build on. (`leaderboard-site.yml`
+    # is not a reason either way: it filters on `leaderboard/site/**` and a
+    # promotion never matches it. The site redeploys from its `workflow_run`
+    # trigger instead.) The cost is that promotion re-triggers itself once; that
+    # re-run finds nothing to do and returns before pushing, which is a free
+    # re-check that `main` still agrees with the archive.
     run(["git", "commit", "-m", "feat: promote best-known table policies"])
     # This job fires on push to `main` and takes the better part of an hour, so
     # `main` may have moved since checkout. Only generated paths are touched and
