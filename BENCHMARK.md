@@ -84,8 +84,9 @@ comment. Each successful policy commit has one archive directory; reruns update
 it rather than duplicating the source. Full verifier output and diagnostic logs
 remain available as workflow artifacts for 90 days.
 
-Champion policies are composed with the general fallback and promoted through a
-verified `automation/best-known` branch. Promotion rebuilds the policies, audits
-their proof dependencies and target-specific correctness theorems, and requires
-the published metrics to match before that branch is updated. A maintainer
-reviews and merges it into `main`.
+Champion policies are composed with the general fallback and committed to
+`main` by trusted automation. Promotion rebuilds the policies, audits their
+proof dependencies and target-specific correctness theorems, and requires the
+published metrics to match before anything is pushed. The push is restricted to
+the files promotion generates, so a promotion that changed anything else fails
+instead of landing.
