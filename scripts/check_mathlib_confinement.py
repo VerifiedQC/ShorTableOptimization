@@ -15,6 +15,15 @@ Nothing in Lean enforces that boundary. The moment a Mathlib import lands in
 submitter's pull request, for a change a maintainer made. This script is the
 enforcement, so the breakage surfaces here instead.
 
+This runs on changes to `main`, not on submission pull requests, and that is
+deliberate. A submission is gated by the audit itself: `verify_axiom_dependencies`
+runs `#print axioms` on both contract theorems against `ALLOWED_AXIOMS`, so a
+submitter who imports Mathlib and reaches `Classical.choice` is rejected by the
+thing the guarantee is actually made of. One who imports it and stays
+`propext`-clean has broken nothing, and a grep for the import would reject them
+anyway. The structural check is for maintainer edits, which no per-submission
+audit would catch until it started failing on someone else's pull request.
+
 Exit codes: 0 confined, 1 a Mathlib import escaped, 2 the check could not run.
 """
 
