@@ -46,11 +46,15 @@ jobs:
           path: published-results
           persist-credentials: false
 
-      # Cheap, and it guards the one step that writes to `main` without
-      # review. Run it before the Lean build so a broken gate fails in seconds.
+      # Cheap, and these guard the step that writes to `main` without review:
+      # the allowlist and rebase that push the commit, and the layer-bound rule
+      # that decides which tables enter the catalogue. Run them before the Lean
+      # build so a broken gate fails in seconds rather than fifty minutes.
       - name: Check the promotion gate
         working-directory: source
-        run: python3 scripts/test_publish_promotion.py
+        run: |
+          python3 scripts/test_publish_promotion.py
+          python3 scripts/test_archive_completeness.py
 
       - name: Install Lean
         working-directory: source

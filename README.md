@@ -26,13 +26,23 @@ Fetching the prebuilt artifacts takes a few minutes; compiling them from source
 takes hours. Nothing the submission contract depends on imports Mathlib, so a
 submission's own proofs stay Mathlib-free.
 
-Three checks you can run locally:
+Checks you can run locally. Only the last needs a built Lean tree; the rest
+finish in under a second.
 
 ```bash
 python3 scripts/verifier.py --out-dir artifacts                  # the full verifier
 python3 scripts/verifier.py --out-dir artifacts --preflight-only # structural checks only
+python3 scripts/test_verifier_hardening.py                       # scanner cannot be evaded
+python3 scripts/test_archive_completeness.py                     # admitted files are archived
+python3 scripts/test_publish_promotion.py                        # promotion may only write what it generates
+python3 scripts/check_mathlib_confinement.py                     # Mathlib stays out of the contract
 node scripts/test_recursive_cost.js                              # Lean model vs browser calculator
 ```
+
+Every one of these runs in CI. Submissions are gated by the verifier plus the
+hardening and archive checks; promotion by the promotion, confinement and
+archive checks; and the Lean/JS differential runs in promotion and on the
+ForShor dependency bump.
 
 The template passes preflight. The full verifier rejects it, because it handles
 no benchmark targets yet.
