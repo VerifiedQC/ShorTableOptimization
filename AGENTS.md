@@ -42,8 +42,9 @@ submissions.
 - Unhandled cases use the protected best-known generator; its final fallback is
   the general generator.
 - Promotion must rebuild the composed generator, repeat trusted checks, and
-  reproduce every promised benchmark metric before updating
-  `automation/best-known`; only a maintainer merges that branch into `main`.
+  reproduce every promised benchmark metric before it commits to `main`. It may
+  only write the paths `scripts/promote.py` generates; anything else fails the
+  job rather than being pushed.
 
 ## Which score you are optimizing
 

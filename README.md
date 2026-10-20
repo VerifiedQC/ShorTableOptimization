@@ -141,13 +141,21 @@ Current promoted metrics are in
 
 When a result becomes a per-target champion, trusted automation constructs the
 complete best-known generator, rebuilds Lean, audits the target proofs,
-reproduces the metrics, and updates `automation/best-known`. It then tries to
-open the pull request itself, and falls back to linking the
-[comparison for creating a PR](https://github.com/VerifiedQC/ShorTableOptimization/compare/main...automation/best-known?expand=1)
-in its workflow summary. The fallback is what happens today: opening the PR
-needs *Settings -> Actions -> General -> Workflow permissions -> allow GitHub
-Actions to create and approve pull requests*, which is off. A maintainer reviews
-and merges either way; automation never pushes to `main` directly.
+reproduces the metrics, and commits the result to `main`.
+
+Nothing reviews that commit by hand, so the gates are in the job that makes it.
+It runs on a checkout of `main` rather than of the submission, re-derives the
+generator from the `submission-results` archive, and re-checks every claim the
+archive makes. `scripts/ci/publish_promotion.py` then refuses to push if
+promotion touched any path outside the ones `scripts/promote.py` generates:
+`TableGeneration/BestKnown.lean`,
+`TableGeneration/RecursiveCost/ArchivedCatalog.lean`,
+`TableGeneration/Policies/Accepted/`, and `leaderboard/best-known.md`.
+
+The ForShor dependency bump (`update-forshor.yml`) is the only other automation
+that writes to `main`, and self-gates the same way: it refuses to push unless
+the companion's cost model is byte-identical to
+`scripts/tests/companion-cost-model.tsv`.
 
 ## Repository Layout
 
