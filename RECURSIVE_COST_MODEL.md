@@ -64,8 +64,8 @@ The gate costs are not reproduced here, and they are no longer copied either.
 resource records and `shorGateCostModel` itself are the companion's own
 definitions, imported from the `Fast_multiplication` dependency. There used to
 be a transcribed slice under `TableGeneration/RecursiveCost/ForShor/` kept in
-step by a hand-run drift check; sourcing the definitions removes both the copy
-and the drift, and `scripts/check_forshor_slice.py` went with them.
+step by a hand-run drift check; sourcing the definitions removed the copy, the
+drift and the checker alike. Nothing of that arrangement remains to look up.
 
 The planner's constants are computed from those records, so the familiar
 `9w - 16` and `10w - 14` are theorems (`cuccaroModAddGateCount_eq`,
