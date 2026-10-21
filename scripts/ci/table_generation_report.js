@@ -147,14 +147,13 @@ async function ensureResultsBranch(github, context) {
   }
 }
 
+const PERSIST_ATTEMPTS = 5;
+
 async function persistFiles(github, context, files, message) {
   const { owner, repo } = context.repo;
-  const headSha = await ensureResultsBranch(github, context);
-  const head = await github.rest.git.getCommit({
-    owner,
-    repo,
-    commit_sha: headSha,
-  });
+
+  // Blobs are content-addressed and say nothing about the branch head, so they
+  // are uploaded once and reused by every attempt below.
   const entries = [];
   for (const [storedPath, localPath] of files) {
     const blob = await github.rest.git.createBlob({
@@ -171,27 +170,47 @@ async function persistFiles(github, context, files, message) {
     });
   }
 
-  const tree = await github.rest.git.createTree({
-    owner,
-    repo,
-    base_tree: head.data.tree.sha,
-    tree: entries,
-  });
-  if (tree.data.sha === head.data.tree.sha) return;
+  // Two submissions finishing together both persist to the same branch, and
+  // `updateRef` without force refuses the second with 422. Re-read the head and
+  // rebuild on top of it rather than losing that submission's archive: the
+  // concurrency group that used to serialise this dropped queued runs outright,
+  // which lost the archive, the PR comment and the close.
+  for (let attempt = 1; attempt <= PERSIST_ATTEMPTS; attempt += 1) {
+    const headSha = await ensureResultsBranch(github, context);
+    const head = await github.rest.git.getCommit({
+      owner,
+      repo,
+      commit_sha: headSha,
+    });
 
-  const commit = await github.rest.git.createCommit({
-    owner,
-    repo,
-    message,
-    tree: tree.data.sha,
-    parents: [headSha],
-  });
-  await github.rest.git.updateRef({
-    owner,
-    repo,
-    ref: `heads/${RESULTS_BRANCH}`,
-    sha: commit.data.sha,
-  });
+    const tree = await github.rest.git.createTree({
+      owner,
+      repo,
+      base_tree: head.data.tree.sha,
+      tree: entries,
+    });
+    if (tree.data.sha === head.data.tree.sha) return;
+
+    const commit = await github.rest.git.createCommit({
+      owner,
+      repo,
+      message,
+      tree: tree.data.sha,
+      parents: [headSha],
+    });
+    try {
+      await github.rest.git.updateRef({
+        owner,
+        repo,
+        ref: `heads/${RESULTS_BRANCH}`,
+        sha: commit.data.sha,
+      });
+      return;
+    } catch (error) {
+      if (error.status !== 422 || attempt === PERSIST_ATTEMPTS) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+    }
+  }
 }
 
 async function downloadExistingIndex(github, context) {
