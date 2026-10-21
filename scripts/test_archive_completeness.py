@@ -85,8 +85,6 @@ def test_admitted_set_is_archived():
             )
         candidates = [
             "TableGeneration/Submission/Policy.lean",
-            "TableGeneration/Submission/Defs.lean",
-            "TableGeneration/Submission/Correctness.lean",
             "TableGeneration/Submission/Policy/Helper.lean",
         ]
         for name in candidates:
@@ -126,14 +124,23 @@ def test_nested_helpers_are_archived():
         assert "TableGeneration/Submission/Policy/Deep/Nested/Aux.lean" in _archive_names(repo)
 
 
-# --- hole 2: the writable adapter files --------------------------------------
+# --- hole 2 (closed differently): the adapter files are now protected --------
 
-def test_adapter_files_are_archived():
-    """Defs.lean and Correctness.lean are writable, so they must be captured."""
+def test_adapter_files_are_not_editable_and_not_archived():
+    """Defs.lean and Correctness.lean are fixed adapters: a submission may not
+    change them, so they are not part of the editable, archived surface. This
+    is the containment kept the other way round -- nothing editable is missing
+    from the archive, and nothing archived is uneditable."""
+    assert not verifier.is_allowed_changed_file(
+        "TableGeneration/Submission/Defs.lean"
+    )
+    assert not verifier.is_allowed_changed_file(
+        "TableGeneration/Submission/Correctness.lean"
+    )
     with tempfile.TemporaryDirectory() as tmp:
         archived = _archive_names(_fake_repo(Path(tmp)))
-        assert "TableGeneration/Submission/Defs.lean" in archived
-        assert "TableGeneration/Submission/Correctness.lean" in archived
+        assert "TableGeneration/Submission/Defs.lean" not in archived
+        assert "TableGeneration/Submission/Correctness.lean" not in archived
 
 
 # --- guards against over-collecting ------------------------------------------

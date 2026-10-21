@@ -46,14 +46,17 @@ jobs:
         working-directory: verifier
         run: python3 -m scripts.ci.export_benchmark_config >> "$GITHUB_OUTPUT"
 
-      # Both take well under a second and run against the trusted verifier
+      # All three take well under a second and run against the trusted verifier
       # checkout, not the submission. They cover the scanner hardening that
-      # stops a banned token being hidden in a string literal, and the
-      # containment that keeps every admitted file inside the source archive.
+      # stops a banned token being hidden in a string, raw-string or character
+      # literal; the import and namespace preflight that keeps a promoted policy
+      # buildable; and the containment that keeps every admitted file inside the
+      # source archive.
       - name: Check verifier hardening and archive completeness
         working-directory: verifier
         run: |
           python3 scripts/test_verifier_hardening.py
+          python3 scripts/test_submission_preflight.py
           python3 scripts/test_archive_completeness.py
 
       - name: Run verifier preflight
