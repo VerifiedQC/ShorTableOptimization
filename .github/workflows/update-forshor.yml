@@ -87,6 +87,13 @@ jobs:
         if: steps.update.outputs.changed == 'true'
         run: node scripts/test_recursive_cost.js
 
+      # The Lean-against-Lean half of the above, which survives the JS mirror's
+      # deletion in Phase 2. Before the TSV gate, so a companion change that
+      # breaks the planner is reported as that rather than as a stale pin.
+      - name: Lean cost model checks
+        if: steps.update.outputs.changed == 'true'
+        run: python3 scripts/test_cost_model_lean.py
+
       # The gate. Everything the planner reads from the companion: primitive
       # gate costs, allocation costs, width transitions. Archive-independent by
       # construction, so a promotion cannot make it stale.
