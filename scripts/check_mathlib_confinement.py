@@ -42,6 +42,14 @@ ALLOWED_PREFIX = Path("TableGeneration/RecursiveCost")
 # as directly, and would break the `propext`-only axiom audit.
 IMPORT_RE = re.compile(r"^\s*import\s+(Mathlib|Batteries|FastMultiplication)\b", re.M)
 
+# A direct Mathlib import is not the only way to pull Mathlib onto the submission
+# path: importing `TableGeneration.RecursiveCost.*` (the only subtree that is
+# allowed to import Mathlib) drags it in transitively. Flag that import anywhere
+# outside the allowed prefix, except in the library root `TableGeneration.lean`,
+# which is meant to import `RecursiveCost.Correctness` to place it in the build.
+TRANSITIVE_RE = re.compile(r"^\s*import\s+(TableGeneration\.RecursiveCost\b[\w.]*)", re.M)
+ROOT_FILE = Path("TableGeneration.lean")
+
 SEARCH_ROOTS = [Path("TableGeneration"), Path("scripts")]
 
 
@@ -68,6 +76,13 @@ def main() -> int:
             for match in IMPORT_RE.finditer(text):
                 line = text[: match.start()].count("\n") + 1
                 offenders.append((relative, f"{line}: {match.group(0).strip()}"))
+            # The transitive rule applies to the contract library only. The Lean
+            # test drivers under scripts/tests/ legitimately import RecursiveCost
+            # (they exercise it) and never ship on the submission path.
+            if root == Path("TableGeneration") and relative != ROOT_FILE:
+                for match in TRANSITIVE_RE.finditer(text):
+                    line = text[: match.start()].count("\n") + 1
+                    offenders.append((relative, f"{line}: {match.group(0).strip()}"))
 
     if not scanned:
         print("check_mathlib_confinement: no Lean files found", file=sys.stderr)
