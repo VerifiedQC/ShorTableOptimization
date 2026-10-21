@@ -477,12 +477,33 @@ def generate_best_known_report(
     (repo / BEST_KNOWN_REPORT_PATH).write_text("\n".join(lines), encoding="utf-8")
 
 
+def audit_records(
+    selections: list[dict[str, Any]],
+    unbounded: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Every (module, mode, k) the composed generator can dispatch to, so the
+    axiom audit and the `generate_safe` re-check cover catalogue-only policies,
+    not just champions. A `sorry` or a wrong `handles` in a table the planner
+    reaches would otherwise reach the gate count unaudited. `catalog_entries`
+    carries no `mode` (it is always `CATALOG_MODE`), so it is supplied here."""
+    records: dict[tuple[str, str, int], dict[str, Any]] = {}
+    for record in selections:
+        key = (record["module_id"], record["mode"], record["k"])
+        records.setdefault(key, {"module_id": record["module_id"],
+                                 "mode": record["mode"], "k": record["k"]})
+    for record in unbounded:
+        key = (record["module_id"], CATALOG_MODE, record["k"])
+        records.setdefault(key, {"module_id": record["module_id"],
+                                 "mode": CATALOG_MODE, "k": record["k"]})
+    return [records[key] for key in sorted(records)]
+
+
 def construct(
     repo: Path,
     results_root: Path,
     leaderboard: dict[str, Any],
     config_targets: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     selections = selected_champions(leaderboard, config_targets)
     entries = catalog_entries(leaderboard, config_targets)
     unbounded = catalog_entries(leaderboard, config_targets, bound_layers=False)
@@ -504,7 +525,7 @@ def construct(
     generate_best_known(repo, selections)
     generate_archived_catalog(repo, entries, unbounded)
     generate_best_known_report(repo, selections, len(config_targets))
-    return selections
+    return selections, audit_records(selections, unbounded)
 
 
 def evaluate_targets(
@@ -595,7 +616,13 @@ def evaluate_targets(
     return evaluated
 
 
-def verify_source(repo: Path, selections: list[dict[str, Any]]) -> None:
+def scan_accepted_sources(repo: Path) -> None:
+    """Reject banned tokens in the installed policy sources. Runs BEFORE the
+    Lean build, so a submission that a scanner weakness let reach the archive
+    cannot execute compile-time code during `lake build` -- the job that holds a
+    write token to `main`. The per-submission preflight already scanned these
+    files, but this is the archive as a whole and the last chance to catch a
+    gap before the trusted build."""
     failures = []
     for path in sorted((repo / ACCEPTED_ROOT).glob("**/*.lean")):
         text = strip_lean_comments(path.read_text(encoding="utf-8"))
@@ -605,7 +632,14 @@ def verify_source(repo: Path, selections: list[dict[str, Any]]) -> None:
     if failures:
         raise ValueError("; ".join(failures))
 
-    modules = sorted({selection["module_id"] for selection in selections})
+
+def audit_accepted_axioms(repo: Path, records: list[dict[str, Any]]) -> None:
+    """Audit every installed (module, mode, k) the composed generator can reach,
+    champions and catalogue-only tables alike: `#print axioms` stays within
+    `ALLOWED_AXIOMS`, and `generatedPoints_valid` / `generate_safe` re-elaborate
+    by `decide` for the claimed target. A catalogue-only table with a `sorry` or
+    a `handles` it cannot prove is caught here rather than reaching the planner."""
+    modules = sorted({record["module_id"] for record in records})
     source = [
         "import TableGeneration.BestKnown",
         "",
@@ -616,13 +650,13 @@ def verify_source(repo: Path, selections: list[dict[str, Any]]) -> None:
     for module in modules:
         name = f"TableGeneration.Policies.Accepted.{module}.implementation"
         source.append(f"#print axioms {name}")
-    for selection in selections:
+    for record in records:
         name = (
             "TableGeneration.Policies.Accepted."
-            f"{selection['module_id']}.implementation"
+            f"{record['module_id']}.implementation"
         )
-        mode = selection["mode"]
-        k = selection["k"]
+        mode = record["mode"]
+        k = record["k"]
         source.append(
             f"#check {name}.generatedPoints_valid .{mode} {k} "
             "(by decide) (by decide)"
@@ -646,11 +680,15 @@ def verify(
     repo: Path,
     config: dict[str, Any],
     selections: list[dict[str, Any]],
+    catalog_records: list[dict[str, Any]],
 ) -> None:
+    # Scan the installed sources before building them: the build runs untrusted
+    # archived Lean, and this is the job that can push to `main`.
+    scan_accepted_sources(repo)
     build = run_cmd(["lake", "build", "TableGeneration"], repo)
     if build["returncode"] != 0:
         raise ValueError(f"promoted generator does not build:\n{build['output']}")
-    verify_source(repo, selections)
+    audit_accepted_axioms(repo, catalog_records)
     evaluated = evaluate_targets(repo, selections)
     for selection, metrics in zip(selections, evaluated, strict=True):
         target = {"mode": selection["mode"], "k": selection["k"]}
@@ -695,9 +733,11 @@ def main() -> int:
         raise ValueError("leaderboard schema_version must be 3")
     config = read_json(repo / "leaderboard/config.json")
     config_targets = validate_config(config)
-    selections = construct(repo, results_root, leaderboard, config_targets)
+    selections, catalog_records = construct(
+        repo, results_root, leaderboard, config_targets
+    )
     if not args.generate_only:
-        verify(repo, config, selections)
+        verify(repo, config, selections, catalog_records)
     print(f"Constructed {len(selections)} promoted target mappings.")
     return 0
 
