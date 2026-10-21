@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Lean-only checks on the recursive cost model.
 
-These are the checks that `scripts/test_recursive_cost.js` performs which are
-NOT a Lean/JS differential: they compare Lean against Lean, and no theorem
-covers them. Phase 2 deletes the JS mirror, so they have to live somewhere that
-survives it. This file is that somewhere, and it lands BEFORE anything is
-deleted.
+These compare Lean against Lean, and no theorem covers them. They used to live
+in the JavaScript mirror's test alongside a Lean/JS differential; the mirror was
+deleted in Phase 2 and the differential went with it, but these did not, because
+nothing else performs them.
 
 What is kept, and why each one is not implied by a proof:
 

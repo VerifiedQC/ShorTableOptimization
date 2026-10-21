@@ -36,7 +36,7 @@ python3 scripts/test_verifier_hardening.py                       # scanner canno
 python3 scripts/test_archive_completeness.py                     # admitted files are archived
 python3 scripts/test_publish_promotion.py                        # promotion may only write what it generates
 python3 scripts/check_mathlib_confinement.py                     # Mathlib stays out of the contract
-node scripts/test_recursive_cost.js                              # Lean model vs browser calculator
+python3 scripts/test_cost_model_lean.py                          # Lean-only cost-model checks
 ```
 
 Every one of these runs in CI. Submissions are gated by the verifier plus the

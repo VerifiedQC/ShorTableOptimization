@@ -19,9 +19,9 @@ name: Update ForShor
 # 2026-10-13 and 2026-10-14. The snapshot below plans over nothing, so only the
 # companion can move it.
 #
-# `test_recursive_cost.js` cannot serve as this gate: it compares Lean against
-# JavaScript, and the JavaScript mirrors the Lean model, so a companion change
-# moves both sides together and the comparison stays equal.
+# `test_cost_model_lean.py` cannot serve as this gate: it compares the planner
+# against itself, so a companion change moves both sides together and the
+# comparison stays equal. Only a pinned transcript catches that.
 #
 # Regenerate after an intentional companion cost-model change:
 #
@@ -83,13 +83,8 @@ jobs:
         if: steps.update.outputs.changed == 'true'
         run: lake build
 
-      - name: Lean/JavaScript differential
-        if: steps.update.outputs.changed == 'true'
-        run: node scripts/test_recursive_cost.js
-
-      # The Lean-against-Lean half of the above, which survives the JS mirror's
-      # deletion in Phase 2. Before the TSV gate, so a companion change that
-      # breaks the planner is reported as that rather than as a stale pin.
+      # Before the TSV gate, so a companion change that breaks the planner is
+      # reported as that rather than as a stale pin.
       - name: Lean cost model checks
         if: steps.update.outputs.changed == 'true'
         run: python3 scripts/test_cost_model_lean.py
@@ -120,11 +115,12 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lake-manifest.json
-          # `[skip ci]` because `table-generation-promotion` and
-          # `sync-submission-template` both fire on any push to `main`, and
-          # neither has anything to do with a manifest bump. This job has
-          # already built, run the differential and checked the totals, so
-          # nothing downstream would add a check that has not been made.
+          # `[skip ci]` is belt and braces: this push is made with
+          # `GITHUB_TOKEN`, which starts no workflow runs at all (observed
+          # 2026-10-21 on promotion `67053f4`). Were it to start them,
+          # `table-generation-promotion` and `sync-submission-template` have
+          # nothing to do with a manifest bump, and this job has already built,
+          # run the Lean cost-model checks and checked the totals.
           git commit -m "Update ForShor to $(git -C .lake/packages/Fast_multiplication rev-parse --short HEAD) [skip ci]"
           # The build takes about half an hour, so `main` may have moved since
           # checkout. Only `lake-manifest.json` is touched, so a rebase is safe;
