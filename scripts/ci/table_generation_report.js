@@ -6,6 +6,91 @@ const fs = require('fs');
 const RESULTS_BRANCH = 'submission-results';
 const RESULT_MARKER = '<!-- table-generation-submission-result -->';
 
+// The base branch a submission PR must target. A `pull_request` run checks out
+// the workflow from the PR's own merge commit, so a fork could ship a verify
+// workflow that skips the verifier and uploads a forged result artifact. This
+// trusted job must not take the submission's identity from that artifact. It
+// derives the policy commit from the verification run itself and resolves the
+// pull request from the GitHub API, then confirms the run could only have used
+// the base branch's workflow: the PR targets `submission/template` and changes
+// nothing outside the submission surface.
+const SUBMISSION_BASE_REF = 'submission/template';
+const SUBMISSION_POLICY_FILE = 'TableGeneration/Submission/Policy.lean';
+const SUBMISSION_HELPER_PREFIX = 'TableGeneration/Submission/Policy/';
+
+function isAdmittedSubmissionPath(path) {
+  return (
+    path === SUBMISSION_POLICY_FILE ||
+    (path.startsWith(SUBMISSION_HELPER_PREFIX) && path.endsWith('.lean'))
+  );
+}
+
+// Resolve, and vouch for, the pull request behind a verification run. Returns
+// { number, headSha } or throws. Everything here comes from the API and the
+// run, never from the uploaded artifact.
+async function resolveTrustedPullRequest(github, context, workflowRun) {
+  const headSha = String(workflowRun.head_sha || '').toLowerCase().trim();
+  if (!/^[0-9a-f]{40}$/.test(headSha)) {
+    throw new Error('The verification run does not identify a head commit.');
+  }
+  const { owner, repo } = context.repo;
+  const associated = await github.paginate(
+    github.rest.repos.listPullRequestsAssociatedWithCommit,
+    { owner, repo, commit_sha: headSha }
+  );
+  const candidates = associated.filter(
+    (pr) =>
+      pr.base &&
+      pr.base.ref === SUBMISSION_BASE_REF &&
+      String(pr.head && pr.head.sha).toLowerCase() === headSha
+  );
+  if (candidates.length !== 1) {
+    throw new Error(
+      `Expected exactly one ${SUBMISSION_BASE_REF} pull request at ${headSha}; ` +
+        `found ${candidates.length}. Refusing to archive.`
+    );
+  }
+  const pr = candidates[0];
+  const files = await github.paginate(github.rest.pulls.listFiles, {
+    owner,
+    repo,
+    pull_number: pr.number,
+  });
+  // The file list is the control that proves the run used the base workflow, so
+  // it must be complete and non-empty. GitHub caps a pull request's file list at
+  // 3000 even through pagination, so at that size a foreign file could be hidden
+  // past the cap -- fail closed. A real submission always changes Policy.lean, so
+  // it is neither empty nor anywhere near the cap.
+  if (files.length === 0) {
+    throw new Error(
+      `Pull request #${pr.number} reports no changed files; refusing to archive.`
+    );
+  }
+  if (files.length >= 3000) {
+    throw new Error(
+      `Pull request #${pr.number} changes ${files.length} files; the list may be ` +
+        'truncated at the API cap, so a file outside the submission surface could ' +
+        'be hidden. Refusing to archive.'
+    );
+  }
+  const names = files.map((file) => file.filename);
+  const foreign = names.filter((path) => !isAdmittedSubmissionPath(path));
+  if (foreign.length) {
+    throw new Error(
+      `Pull request #${pr.number} changes files outside the submission surface ` +
+        `(${foreign.join(', ')}). The verification run cannot be trusted to have ` +
+        'used the base workflow; refusing to archive.'
+    );
+  }
+  if (!names.includes(SUBMISSION_POLICY_FILE)) {
+    throw new Error(
+      `Pull request #${pr.number} does not change ${SUBMISSION_POLICY_FILE}; ` +
+        'a submission must replace the policy implementation. Refusing to archive.'
+    );
+  }
+  return { number: pr.number, headSha };
+}
+
 function sourceRunId() {
   const runId = Number(process.env.SOURCE_RUN_ID || 0);
   if (!Number.isSafeInteger(runId) || runId <= 0) {
@@ -164,19 +249,16 @@ async function persistBenchmarkResults({ github, context, core }) {
     throw new Error('Benchmark results may only be persisted for successful workflows.');
   }
 
-  const prNumber = String(
-    result?.submission?.pr_number || workflowRun.pull_requests?.[0]?.number || ''
-  ).trim();
-  if (!/^\d+$/.test(prNumber)) {
-    throw new Error('Benchmark result does not identify a pull request.');
-  }
-
-  const policyId = String(
-    result?.submission?.head_sha || workflowRun.head_sha || ''
-  ).toLowerCase().trim();
-  if (!/^[0-9a-f]{40}$/.test(policyId)) {
-    throw new Error('Benchmark result does not identify a policy commit.');
-  }
+  // Identity comes from the run and the API, not from the artifact: the policy
+  // commit is the run's head SHA, and the pull request is resolved and vouched
+  // for by resolveTrustedPullRequest. The artifact's own pr_number / head_sha
+  // are ignored. Binding the archive directory to the real head SHA also means
+  // a forged run cannot address, and so cannot overwrite, another policy's
+  // directory -- that directory is named by that policy's own commit.
+  const pr = await resolveTrustedPullRequest(github, context, workflowRun);
+  const prNumber = String(pr.number);
+  const policyId = pr.headSha;
+  core.setOutput('pr_number', prNumber);
   const storedDirectory = `results/policies/${policyId}`;
   const storedResultPath = `${storedDirectory}/results.json`;
   const storedReportPath = `${storedDirectory}/results.md`;
@@ -308,13 +390,19 @@ async function reportPullRequestResult({ github, context, core }) {
   }
   body = `${body}\n\n${links.join(' · ')}\n`;
 
-  const prNumber = Number(
-    result?.metadata?.pr_number || workflowRun.pull_requests?.[0]?.number || 0
-  );
-  if (!Number.isInteger(prNumber) || prNumber <= 0) {
-    core.warning('Could not identify the pull request; no comment was posted.');
+  // Resolve the pull request the same trusted way persistBenchmarkResults does,
+  // rather than trusting the artifact's metadata. A run that cannot be vouched
+  // for (a forged or mismatched artifact) gets no comment and no close.
+  let trustedPr;
+  try {
+    trustedPr = await resolveTrustedPullRequest(github, context, workflowRun);
+  } catch (error) {
+    core.warning(
+      `Could not resolve a trusted pull request; no comment was posted. ${error.message}`
+    );
     return;
   }
+  const prNumber = trustedPr.number;
 
   await upsertResultComment(github, context, prNumber, body);
   if (!result) {
@@ -347,4 +435,9 @@ async function reportPullRequestResult({ github, context, core }) {
   });
 }
 
-module.exports = { persistBenchmarkResults, reportPullRequestResult };
+module.exports = {
+  persistBenchmarkResults,
+  reportPullRequestResult,
+  resolveTrustedPullRequest,
+  isAdmittedSubmissionPath,
+};
