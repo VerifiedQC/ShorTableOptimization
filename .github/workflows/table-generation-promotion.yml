@@ -135,6 +135,15 @@ jobs:
         working-directory: source
         run: python3 -m scripts.promote --results-root ../published-results
 
+      # The Lean-against-Lean checks that `test_recursive_cost.js` also performs
+      # and no theorem covers. They run here rather than in the `cost-model`
+      # job because that job is `workflow_dispatch`-only since the JS
+      # differential was deprecated, and these have to run unattended. Lean is
+      # already built by this point, so they cost only their own runtime.
+      - name: Lean cost model checks
+        working-directory: source
+        run: python3 scripts/test_cost_model_lean.py
+
       # Package the generated files for the publish job. The whole Accepted
       # directory is copied so the publish job can mirror deletions, not just
       # additions, when a policy leaves the catalogue.
