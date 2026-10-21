@@ -240,12 +240,15 @@ jobs:
   cost-model:
     name: Lean/JS cost model differential
     needs: changes
+    # DEPRECATED 2026-10-21. Phase 2 retires the JS planner, so this check is
+    # kept only for the short window before that lands. It no longer runs on a
+    # pull request or a push: it cost about 12 minutes a run, and on a push
+    # `changes` has no base commit and so always reported `model=true`, making
+    # every push to `main` pay it. Run it by hand with `workflow_dispatch`
+    # while it is still wanted. Delete the job with the planner in Phase 2.
     if: >-
-      needs.changes.outputs.model == 'true' &&
-      (github.event_name == 'workflow_dispatch' ||
-       github.event_name == 'pull_request' ||
-       github.event_name == 'push' ||
-       github.event.workflow_run.conclusion == 'success')
+      github.event_name == 'workflow_dispatch' &&
+      needs.changes.outputs.model == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
