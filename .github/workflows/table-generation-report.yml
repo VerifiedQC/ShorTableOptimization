@@ -40,6 +40,11 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      # Guards the trusted pull-request resolution: the policy identity and the
+      # PR come from the run and the API, never from the uploaded artifact.
+      - name: Check report trust logic
+        run: node scripts/test_report_trust.js
+
       - name: Download verification artifacts
         uses: actions/download-artifact@v8
         continue-on-error: true
