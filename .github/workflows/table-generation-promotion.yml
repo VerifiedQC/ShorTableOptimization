@@ -27,9 +27,12 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # No write access: this job builds and runs untrusted archived Lean. It
+    # only constructs and verifies the generator, then uploads the generated
+    # files as an artifact. The separate `publish` job holds the token and runs
+    # no Lean. See `scripts/ci/publish_promotion.py`.
     permissions:
-      # `publish_promotion.py` pushes the promotion commit to `main`.
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout trusted code
@@ -38,6 +41,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.event.repository.default_branch }}
           path: source
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Checkout published results
         uses: actions/checkout@v7
@@ -126,9 +130,70 @@ jobs:
         working-directory: source
         run: python3 -m scripts.promote --results-root ../published-results
 
-      - name: Promote to main
+      # Package the generated files for the publish job. The whole Accepted
+      # directory is copied so the publish job can mirror deletions, not just
+      # additions, when a policy leaves the catalogue.
+      - name: Package the generated generator
         if: github.event_name != 'pull_request'
-        working-directory: source
+        run: |
+          set -euo pipefail
+          mkdir -p generated
+          cp source/TableGeneration/BestKnown.lean generated/BestKnown.lean
+          cp source/TableGeneration/RecursiveCost/ArchivedCatalog.lean \
+            generated/ArchivedCatalog.lean
+          cp source/leaderboard/best-known.md generated/best-known.md
+          cp -r source/TableGeneration/Policies/Accepted generated/Accepted
+
+      - name: Upload the generated generator
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: promotion-generated
+          path: generated
+          retention-days: 1
+          if-no-files-found: error
+
+  # Push the verified generator to `main`. This job holds the only write token
+  # in the workflow and runs no Lean: it lays the generated files the `promote`
+  # job produced into a fresh `main` checkout and runs the allowlist gate. So
+  # untrusted Lean is never built while a token that can write `main` is present.
+  publish:
+    name: Publish Promotion to main
+    needs: promote
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Download the generated generator
+        uses: actions/download-artifact@v4
+        with:
+          name: promotion-generated
+          path: generated
+
+      - name: Lay the generated files into the tree
+        run: |
+          set -euo pipefail
+          # Replace the generated outputs wholesale. Removing the Accepted tree
+          # first makes a policy that left the catalogue show up as a deletion,
+          # which publish_promotion.py's allowlist admits and git stages.
+          rm -rf TableGeneration/Policies/Accepted
+          mkdir -p TableGeneration/Policies TableGeneration/RecursiveCost leaderboard
+          cp -r generated/Accepted TableGeneration/Policies/Accepted
+          cp generated/BestKnown.lean TableGeneration/BestKnown.lean
+          cp generated/ArchivedCatalog.lean \
+            TableGeneration/RecursiveCost/ArchivedCatalog.lean
+          cp generated/best-known.md leaderboard/best-known.md
+          rm -rf generated
+
+      - name: Promote to main
         run: python3 scripts/ci/publish_promotion.py
 
   # Which paths can change the cost model. A pull request that touches none of
