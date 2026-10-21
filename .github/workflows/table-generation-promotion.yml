@@ -135,10 +135,9 @@ jobs:
         working-directory: source
         run: python3 -m scripts.promote --results-root ../published-results
 
-      # The Lean-against-Lean checks that `test_recursive_cost.js` also performs
-      # and no theorem covers. They run here rather than in the `cost-model`
-      # job because that job is `workflow_dispatch`-only since the JS
-      # differential was deprecated, and these have to run unattended. Lean is
+      # Lean-against-Lean checks that no theorem covers: the array width scan,
+      # the dense and sparse planners, the reference candidates, the catalogue
+      # ordering and two golden plan lines. They run here because Lean is
       # already built by this point, so they cost only their own runtime.
       - name: Lean cost model checks
         working-directory: source
@@ -217,15 +216,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/ci/publish_promotion.py
 
-  # Which paths can change the cost model. A pull request that touches none of
-  # them cannot move the Lean/JS differential, so the sweep is skipped. Pushes
-  # to main always run it.
+  # Which paths can change what promotion constructs or verifies. A pull request
+  # that touches none of them skips the hour-long `promote` job. Every other
+  # event has no base to diff against and so reports `true`.
   changes:
     name: Detect relevant changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      model: ${{ steps.filter.outputs.model }}
       promotion: ${{ steps.filter.outputs.promotion }}
     steps:
       - name: Checkout
@@ -240,9 +238,8 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          # Off a pull request there is no base to diff against, so assume both.
+          # Off a pull request there is no base to diff against, so assume yes.
           if [ -z "${BASE:-}" ]; then
-            echo "model=true" >> "$GITHUB_OUTPUT"
             echo "promotion=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -251,114 +248,12 @@ jobs:
           changed=$(git diff --name-only "$BASE...$HEAD")
           echo "$changed"
 
-          # Can the Lean/JS cost model have moved?
-          if echo "$changed" | grep -qE '^(TableGeneration/|TableGeneration\.lean|scripts/tests/|scripts/test_recursive_cost\.js|leaderboard/site/recursive-cost\.js|lean-toolchain|lakefile\.lean|lake-manifest\.json|\.github/workflows/table-generation-promotion\.yml)'; then
-            echo "model=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "model=false" >> "$GITHUB_OUTPUT"
-          fi
-
-          # Can what promotion constructs or verifies have moved? Wider than the
-          # cost model: it includes the promotion and leaderboard tooling, whose
-          # own tests are exactly what a change to them needs to run. A docs-only
-          # pull request matches nothing here and so skips the 60-minute job.
+          # Includes the promotion and leaderboard tooling, whose own tests are
+          # exactly what a change to them needs to run. A docs-only pull request
+          # matches nothing here and so skips the 60-minute job.
           if echo "$changed" | grep -qE '^(TableGeneration/|TableGeneration\.lean|leaderboard/|scripts/promote\.py|scripts/leaderboard\.py|scripts/verifier\.py|scripts/ci/|scripts/test_|lean-toolchain|lakefile\.lean|lake-manifest\.json|\.github/workflows/table-generation-promotion\.yml)'; then
             echo "promotion=true" >> "$GITHUB_OUTPUT"
           else
             echo "promotion=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # The Lean/JS differential. Runs beside the promotion job rather than inside
-  # it, so the two do not add up, and only when the cost model can have moved.
-  cost-model:
-    name: Lean/JS cost model differential
-    needs: changes
-    # DEPRECATED 2026-10-21. Phase 2 retires the JS planner, so this check is
-    # kept only for the short window before that lands. It no longer runs on a
-    # pull request or a push: it cost about 12 minutes a run, and on a push
-    # `changes` has no base commit and so always reported `model=true`, making
-    # every push to `main` pay it. Run it by hand with `workflow_dispatch`
-    # while it is still wanted. Delete the job with the planner in Phase 2.
-    if: >-
-      github.event_name == 'workflow_dispatch' &&
-      needs.changes.outputs.model == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout trusted code
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.event.repository.default_branch }}
-          path: source
-          persist-credentials: false
-      - name: Checkout published results
-        uses: actions/checkout@v7
-        with:
-          ref: submission-results
-          path: published-results
-          persist-credentials: false
-      - name: Install Lean
-        working-directory: source
-        run: ./scripts/ci/install_lean.sh
-
-      # `lean-build-cache.yml` saves these from the repository root. A cache's
-      # version is a hash of its `path`, so an entry saved at `.lake/packages`
-      # cannot be restored at `source/.lake/packages`: the key matches, the
-      # version does not, and the restore reports a miss. Restore at the saved
-      # path, then move the tree into the checkout.
-      - name: Restore Lean dependency cache
-        uses: actions/cache/restore@v4
-        with:
-          path: .lake/packages
-          key: lake-packages-${{ runner.os }}-${{ hashFiles('source/lake-manifest.json', 'source/lean-toolchain') }}
-          restore-keys: |
-            lake-packages-${{ runner.os }}-
-
-      - name: Move restored dependencies into the checkout
-        run: |
-          set -euo pipefail
-          if [ -d .lake/packages ]; then
-            mkdir -p source/.lake
-            rm -rf source/.lake/packages
-            mv .lake/packages source/.lake/packages
-            echo "restored dependency tree into source/.lake/packages"
-          else
-            echo "no dependency cache restored"
-          fi
-
-      - name: Fetch Mathlib oleans
-        working-directory: source
-        run: lake exe cache get
-
-      # Without this the job recompiles every `TableGeneration` module, which is
-      # most of its runtime. Lake re-checks module hashes, so a stale entry is
-      # rebuilt rather than trusted. Same root-path treatment as above.
-      - name: Restore Lean build cache
-        uses: actions/cache/restore@v4
-        with:
-          path: .lake/build
-          key: lake-build-${{ runner.os }}-${{ hashFiles('source/lean-toolchain', 'source/lakefile.lean', 'source/lake-manifest.json', 'source/TableGeneration.lean', 'source/TableGeneration/**/*.lean') }}
-          restore-keys: |
-            lake-build-${{ runner.os }}-
-
-      - name: Move restored build into the checkout
-        run: |
-          set -euo pipefail
-          if [ -d .lake/build ]; then
-            mkdir -p source/.lake
-            rm -rf source/.lake/build
-            mv .lake/build source/.lake/build
-            echo "restored build tree into source/.lake/build"
-          else
-            echo "no build cache restored"
-          fi
-
-      # The submission axiom audit is propext-only because nothing on the
-      # submission path imports Mathlib. Nothing in Lean enforces that.
-      - name: Test recursive cost model
-        working-directory: source
-        env:
-          TABLE_GEN_RESULTS_ROOT: ../published-results
-        run: node scripts/test_recursive_cost.js

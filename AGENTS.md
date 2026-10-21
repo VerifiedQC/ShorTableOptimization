@@ -115,9 +115,9 @@ so those targets are scored structurally and never priced in gates.
   Mathlib is a dependency of the recursive cost model, and compiling it from
   source instead of fetching it takes hours.
 - Run `lake build TableGeneration` after Lean changes.
-- Run `node scripts/test_recursive_cost.js` after recursive planner or website
-  calculator changes. It compares the Lean and JavaScript cost models exactly,
-  over every accepted table, and separately checks that the two agree on the
+- Run `python3 scripts/test_cost_model_lean.py` after recursive planner
+  changes. It checks the planner against itself -- the array width scan, the
+  dense and sparse planners, the reference candidates and the catalogue -- and
   published plan over the unbounded catalogue. Takes a few minutes.
 - CI runs `scripts/verifier.py` automatically for submission PRs.
 - For local verification while changing the verifier or template, run

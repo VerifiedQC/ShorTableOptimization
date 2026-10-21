@@ -92,9 +92,10 @@ Three things the companion does not supply, all under
   **equal** to it.
 
 What guards the cost model continuously is in-repo and needs no companion
-checkout -- the oracle's `--width-scan` and `--allocation` modes, run by
-`scripts/test_recursive_cost.js`, which check the planner's array width scan and
-its closed-form allocation charge against the companion's own definitions.
+checkout -- the oracle's `--width-scan` mode, run by
+`scripts/test_cost_model_lean.py`, which checks the planner's array width scan
+against the companion's own definitions. The closed-form allocation charge needs
+no test: `canonicalAllocationCost_eq` proves it.
 
 ForShor is a Lake dependency, declared in `lakefile.lean` as the package
 `Fast_multiplication` and tracking its `main` branch. Mathlib is required first
@@ -130,9 +131,9 @@ lower arithmetic-operation count, because several plans reach the same gate cost
 and the two searches break that tie differently. The agreement on gates is not
 guaranteed -- see the two-catalogue note below.
 
-The Lean/JS differential (`node scripts/test_recursive_cost.js`) will not catch
-a change here: both sides derive from the same Lean model, so they move
-together. Only the totals above show that the model itself moved.
+`scripts/test_cost_model_lean.py` will not catch a change here: it compares the
+planner against itself, so both sides move together. Only the totals above show
+that the model itself moved.
 
 The dependency is confined to `TableGeneration/RecursiveCost/**`, enforced by
 `scripts/check_mathlib_confinement.py`, which is what keeps the submission axiom
@@ -299,9 +300,10 @@ width was accepted afterwards, so the bound currently costs nothing. Treat
 agreement as something to check, not something to assume, and read
 `--best-known-unbounded` as the published number.
 
-`scripts/test_recursive_cost.js` checks exactly this: `testPublishedNumberDifferential`
-plans over the unbounded catalogue in both Lean and JavaScript at 1024, 2048,
-4096, 8192 and 16384 and requires the whole plan to match.
+This was checked by `testPublishedNumberDifferential` in the JavaScript mirror,
+which planned over the unbounded catalogue in both languages at 1024, 2048,
+4096, 8192 and 16384. That mirror is gone; the totals table above is what now
+shows the published number has not moved.
 
 ## Initial Metrics
 
