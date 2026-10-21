@@ -116,11 +116,11 @@ jobs:
             echo "no dependency cache restored"
           fi
 
-      # A cache miss on the dependency tree would otherwise mean compiling
-      # Mathlib from source, which no CI budget survives.
-      - name: Fetch Mathlib oleans
-        working-directory: submission
-        run: lake exe cache get
+      # No `lake exe cache get` here. The verifier builds
+      # `TableGeneration.Submission.Correctness` and `TableGeneration.Metrics`,
+      # and nothing in the import closure of either reaches Mathlib, so the
+      # Mathlib oleans this fetched were never loaded. Promotion still fetches
+      # them, because it builds the whole library.
 
       - name: Restore Lean build cache
         uses: actions/cache/restore@v4
