@@ -58,7 +58,7 @@ its own. It decides champions and promotion, and it is what
 `leaderboard/best-known.md` reports.
 
 **Gate count**, the recursive planner's logical gate total at an operand width,
-with 2048 bits as the headline. It is what the landing page of the site reports.
+with 2048 bits as the headline.
 
 They disagree because an operation count cannot see how far a program
 **contracts** its operands, and the child width applies to the entire subtree
@@ -80,16 +80,16 @@ If your goal is gate count:
 - Do not buy gates with depth. The gate model charges nothing for layers, so
   adding sequential stages to save arithmetic would otherwise be free. A
   candidate deeper than the current champion at the same arity is kept out of
-  `archivedCandidates`, the bounded catalogue the Lean planner searches by
-  default. It is still archived, and it still reaches the website, which plans
-  over `archivedCandidatesUnbounded`. So a deeper table can move the published
-  number while the Lean default says it changed nothing; see
+  `archivedCandidates`, the bounded catalogue the planner searches by default.
+  It is still archived, and still appears in `archivedCandidatesUnbounded`. So a
+  deeper table can move the archive-wide number while the default says it
+  changed nothing; see
   [RECURSIVE_COST_MODEL.md](RECURSIVE_COST_MODEL.md) for which catalogue is
   which.
 - Measure before submitting, both ways. They should agree; when they do not, the
-  second is what the site will report:
-  `lake env lean --run scripts/tests/RecursiveCostOracle.lean --model=v3
-  --best-known 2048` and the same command with `--best-known-unbounded`.
+  second is the archive-wide number:
+  `lake env lean --run scripts/tests/RecursiveCostOracle.lean --best-known 2048`
+  and the same command with `--best-known-unbounded`.
 
 Only `PhaseProduct` reaches the planner. `PhaseTripleProduct` has no gate model,
 so those targets are scored structurally and never priced in gates.

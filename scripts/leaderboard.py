@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Update website benchmark JSON from a successful verifier artifact."""
+"""Build the benchmark index from a successful verifier artifact.
+
+The index on `submission-results` is `scripts/promote.py`'s only input, and
+`export_benchmark_config.py` imports `validate_config` from here.
+
+The `generated_at` and `benchmark` fields fed the retired website and now have
+no consumer. They stay: dropping them is a schema change, and `promote.py` pins
+schema_version 3.
+"""
 
 from __future__ import annotations
 

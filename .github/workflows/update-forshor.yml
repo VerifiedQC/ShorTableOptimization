@@ -98,9 +98,9 @@ jobs:
           set -euo pipefail
           {
             lake env lean --run scripts/tests/RecursiveCostOracle.lean \
-              --model=v3 --costs 3 8 64 1024 2048
+              --costs 3 8 64 1024 2048
             lake env lean --run scripts/tests/RecursiveCostOracle.lean \
-              --model=v3 --reference 64 1024 2048 4096 8192 16384
+              --reference 64 1024 2048 4096 8192 16384
           } > /tmp/companion-actual.tsv
           if ! diff -u scripts/tests/companion-cost-model.tsv /tmp/companion-actual.tsv; then
             echo "::error::The companion's cost model changed. Not pushing. Decide whether the change is wanted, re-measure the planner totals, then regenerate scripts/tests/companion-cost-model.tsv in a reviewed PR."
