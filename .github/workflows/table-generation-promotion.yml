@@ -65,11 +65,7 @@ jobs:
 
       - name: Install Lean
         working-directory: source
-        run: |
-          set -euo pipefail
-          curl -sSf https://raw.githubusercontent.com/leanprover/elan/55dc2814ca42ace25f05ba4dd7a43a8c701a0549/elan-init.sh \
-            | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+        run: ./scripts/ci/install_lean.sh
 
       # `lean-build-cache.yml` saves these from the repository root. A cache's
       # version is a hash of its `path`, so an entry saved at `.lake/packages`
@@ -268,11 +264,7 @@ jobs:
           persist-credentials: false
       - name: Install Lean
         working-directory: source
-        run: |
-          set -euo pipefail
-          curl -sSf https://raw.githubusercontent.com/leanprover/elan/55dc2814ca42ace25f05ba4dd7a43a8c701a0549/elan-init.sh \
-            | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+        run: ./scripts/ci/install_lean.sh
 
       # `lean-build-cache.yml` saves these from the repository root. A cache's
       # version is a hash of its `path`, so an entry saved at `.lake/packages`
