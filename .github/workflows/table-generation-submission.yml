@@ -75,7 +75,7 @@ jobs:
         working-directory: verifier
         run: |
           set -euo pipefail
-          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/55dc2814ca42ace25f05ba4dd7a43a8c701a0549/elan-init.sh \
             | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
@@ -126,7 +126,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .lake/build
-          key: lake-build-${{ runner.os }}-${{ hashFiles('verifier/lean-toolchain', 'verifier/lakefile.lean', 'verifier/TableGeneration/**/*.lean') }}
+          key: lake-build-${{ runner.os }}-${{ hashFiles('verifier/lean-toolchain', 'verifier/lakefile.lean', 'verifier/lake-manifest.json', 'verifier/TableGeneration.lean', 'verifier/TableGeneration/**/*.lean') }}
           restore-keys: |
             lake-build-${{ runner.os }}-
 

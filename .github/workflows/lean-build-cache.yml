@@ -24,8 +24,12 @@ on:
     branches: [main]
     paths:
       - 'TableGeneration/**'
+      # The library root sits beside the directory, so `TableGeneration/**`
+      # never matches it.
+      - 'TableGeneration.lean'
       - 'lean-toolchain'
       - 'lakefile.lean'
+      - 'lake-manifest.json'
   workflow_dispatch:
 
 permissions:
@@ -50,7 +54,7 @@ jobs:
       - name: Install Lean
         run: |
           set -euo pipefail
-          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/55dc2814ca42ace25f05ba4dd7a43a8c701a0549/elan-init.sh \
             | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
@@ -74,4 +78,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .lake/build
-          key: lake-build-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lakefile.lean', 'TableGeneration/**/*.lean') }}
+          key: lake-build-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lakefile.lean', 'lake-manifest.json', 'TableGeneration.lean', 'TableGeneration/**/*.lean') }}
