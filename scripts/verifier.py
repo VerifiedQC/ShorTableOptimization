@@ -12,12 +12,29 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import zipfile
 from typing import Any
 
 
 CHALLENGE = "table-generation"
-TARGET_MODULE = "TableGeneration"
+# What a submission needs built, rather than the whole library. The library root
+# pulls in `RecursiveCost.Correctness`, and so Mathlib and every accepted policy,
+# none of which a submission can affect: the changed-file check confines it to
+# `TableGeneration/Submission/`.
+#
+# These two are the roots of everything the generated Lean imports. The axiom
+# audit uses `Submission.Correctness`; the coverage check uses
+# `Submission.Defs`, which it reaches; the metrics file uses both plus
+# `Metrics`, which is NOT reachable from `Submission.Correctness` and so has to
+# be named here.
+#
+# Promotion still builds the whole library -- it is the job that has to compile
+# every accepted policy.
+TARGET_MODULES = [
+    "TableGeneration.Submission.Correctness",
+    "TableGeneration.Metrics",
+]
 SCORE_FIELDS = [
     "arithmetic_operation_count",
     "parallel_phase_product_layer_count",
@@ -206,7 +223,28 @@ def utc_now() -> str:
 # (45 minutes for the submission workflow). If a subprocess outlives the job,
 # the run dies as an opaque cancellation instead of a verifier error naming the
 # step that hung, which is much harder for a submitter to act on.
+#
+# Per-command limits alone did not achieve that: 1800 for the build plus 600
+# each for the axiom, coverage and metrics checks is 3600 seconds against a
+# 2700-second job, and claiming all 30 targets means 30 metric evaluations.
+# `start_deadline` adds one budget for the whole run, and every command is
+# clamped to what is left of it, so the verifier always reports the step that
+# ran out rather than being cancelled mid-step.
 DEFAULT_CMD_TIMEOUT = 1800
+VERIFIER_DEADLINE = 1200
+
+_deadline: float | None = None
+
+
+def start_deadline(seconds: int = VERIFIER_DEADLINE) -> None:
+    """Begin the overall budget. Called by `main`; tests that drive `run_cmd`
+    directly leave it unset, which keeps the old per-command behaviour."""
+    global _deadline
+    _deadline = time.monotonic() + seconds
+
+
+def remaining_seconds() -> float | None:
+    return None if _deadline is None else _deadline - time.monotonic()
 
 
 def run_cmd(
@@ -215,6 +253,18 @@ def run_cmd(
     timeout: int = DEFAULT_CMD_TIMEOUT,
     env: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    left = remaining_seconds()
+    if left is not None:
+        if left <= 0:
+            return {
+                "args": args,
+                "returncode": 124,
+                "output": (
+                    f"The verifier's {VERIFIER_DEADLINE}s budget ran out before "
+                    f"`{' '.join(args)}` started.\n"
+                ),
+            }
+        timeout = min(timeout, int(left))
     try:
         completed = subprocess.run(
             args,
@@ -876,7 +926,7 @@ def write_text(path: Path, text: str) -> None:
 
 
 def verify_build(repo: Path, out_dir: Path) -> dict[str, str]:
-    build = run_cmd(["lake", "build", TARGET_MODULE], repo)
+    build = run_cmd(["lake", "build", *TARGET_MODULES], repo)
     write_text(out_dir / "table-generation-build.log", build["output"])
     return check_result(
         "lean build",
@@ -1550,6 +1600,9 @@ def main() -> int:
 
     repo = Path(args.repo).resolve()
     out_dir = (repo / args.out_dir).resolve()
+    # The preflight runs no subprocesses, so it needs no budget.
+    if not args.preflight_only:
+        start_deadline()
     try:
         result = verify(repo, out_dir, preflight_only=args.preflight_only)
     except Exception as exc:  # noqa: BLE001
