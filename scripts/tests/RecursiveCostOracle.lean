@@ -5,7 +5,8 @@ namespace TableGeneration.RecursiveCost.TestOracle
 
 open Operations
 
-/-- Small independent policy used to compare the Lean and JavaScript planners. -/
+/-- Small independent policy, cheap enough to plan over at every width the
+checks use. Independent of the archive, so a promotion cannot move it. -/
 def binaryCandidate : Candidate where
   policyId := "test-binary"
   k := 2
@@ -64,13 +65,13 @@ def referenceLine (candidate : Candidate) (width : Nat) : String :=
     , toString (nextBalancedSignedWidth width candidate.program)
     , toString (nextSignedWidth width width candidate.program) ]
 
-/-- The primitive gate costs at one width, for the JavaScript mirror to match.
+/-- The primitive gate costs at one width.
 
-The planner differential compares whole plans, which is indirect: a compensating
-pair of errors in two primitives could cancel. This emits the primitives
-themselves so the mirror is checked against the Lean definitions directly,
-including below `w = 3` where truncated `Nat` subtraction makes the published
-closed forms diverge from the structural counts. -/
+Pinned in `scripts/tests/companion-cost-model.tsv` so a companion change that
+moves a primitive is caught directly. Comparing whole plans would be indirect: a
+compensating pair of errors in two primitives could cancel. Includes widths
+below `w = 3`, where truncated `Nat` subtraction makes the published closed
+forms diverge from the structural counts. -/
 def costLine (width : Nat) : String :=
   String.intercalate "\t"
     [ "cost"
@@ -93,27 +94,21 @@ def parseWidth (raw : String) : IO Nat :=
   | some width => pure width
   | none => throw (IO.userError s!"invalid test width: {raw}")
 
-/-- Accept and discard a `--model=<name>` selector.
+/-- Refuse a `--model=<name>` selector.
 
-There is one cost model now -- the companion's operative `Shor.shorGateCostModel`.
-The flag is still accepted, and still rejects anything but the current version
-string, so an old invocation naming a retired model fails loudly instead of
-silently being reinterpreted. -/
-def parseModel (raw : String) : IO Unit :=
-  if raw = "v3" || raw = modelVersion then pure ()
-  else throw (IO.userError
-    s!"unknown cost model: {raw} (the only model is {modelVersion}; \
-       v2 mirrored the companion's deleted phaseProductCostModel)")
-
-/-- Split a leading `--model=<name>` argument from the remaining arguments. -/
-def takeModel (args : List String) : IO (List String) :=
-  match args with
-  | arg :: rest =>
-      if arg.startsWith "--model=" then do
-        parseModel (arg.drop "--model=".length).toString
-        pure rest
-      else pure args
-  | [] => pure args
+There has been one cost model since the companion's `phaseProductCostModel` was
+deleted -- its operative `Shor.shorGateCostModel` -- so the selector chose
+nothing and is gone. It is refused rather than ignored: dropping it silently
+would let `--model=v2` fall through to the width parser and fail as "invalid
+test width", which tells the caller nothing about why. -/
+def rejectModelFlag (args : List String) : IO Unit :=
+  match args.find? (fun arg => arg.startsWith "--model=") with
+  | some arg =>
+      throw (IO.userError
+        s!"{arg}: the --model selector was removed. There is one cost model, \
+           {modelVersion}; v2 mirrored the companion's deleted \
+           phaseProductCostModel. Drop the flag.")
+  | none => pure ()
 
 def printPlans
     (candidates : List Candidate) (rawWidths : List String) : IO Unit := do
@@ -182,8 +177,8 @@ end TableGeneration.RecursiveCost.TestOracle
 open TableGeneration.RecursiveCost
 open TableGeneration.RecursiveCost.TestOracle
 
-def main (rawArgs : List String) : IO Unit := do
-  let args ← takeModel rawArgs
+def main (args : List String) : IO Unit := do
+  rejectModelFlag args
   match args with
   | "--catalog" :: _ =>
       for candidate in archivedCandidates do

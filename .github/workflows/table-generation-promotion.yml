@@ -135,13 +135,13 @@ jobs:
         working-directory: source
         run: python3 -m scripts.promote --results-root ../published-results
 
-      # Lean-against-Lean checks that no theorem covers: the array width scan,
-      # the dense and sparse planners, the reference candidates, the catalogue
-      # ordering and two golden plan lines. They run here because Lean is
-      # already built by this point, so they cost only their own runtime.
-      - name: Lean cost model checks
-        working-directory: source
-        run: python3 scripts/test_cost_model_lean.py
+      # The Lean cost-model checks are deliberately NOT here. They guard the
+      # recursive gate-count planner, which is a reported measure: nothing on
+      # the submission path imports `RecursiveCost`, and the leaderboard ranks
+      # by arithmetic operations and parallel layers, not by the planner. So
+      # they cannot make a submission wrong, and they cost about 2.5 minutes on
+      # every push. They run in `update-forshor.yml`, where a cost-model change
+      # actually originates.
 
       # Package the generated files for the publish job. The whole Accepted
       # directory is copied so the publish job can mirror deletions, not just

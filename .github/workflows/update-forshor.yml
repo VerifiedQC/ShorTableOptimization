@@ -26,10 +26,10 @@ name: Update ForShor
 # Regenerate after an intentional companion cost-model change:
 #
 #   lake env lean --run scripts/tests/RecursiveCostOracle.lean \
-#     --model=v3 --costs 3 8 64 1024 2048 \
+#     --costs 3 8 64 1024 2048 \
 #     > scripts/tests/companion-cost-model.tsv
 #   lake env lean --run scripts/tests/RecursiveCostOracle.lean \
-#     --model=v3 --reference 64 1024 2048 4096 8192 16384 \
+#     --reference 64 1024 2048 4096 8192 16384 \
 #     >> scripts/tests/companion-cost-model.tsv
 
 on:
