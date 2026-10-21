@@ -41,8 +41,8 @@ python3 scripts/test_cost_model_lean.py                          # Lean-only cos
 
 Every one of these runs in CI. Submissions are gated by the verifier plus the
 hardening and archive checks; promotion by the promotion, confinement and
-archive checks; and the Lean/JS differential runs in promotion and on the
-ForShor dependency bump.
+archive checks; and the Lean cost-model checks run on the ForShor dependency
+bump.
 
 The template passes preflight. The full verifier rejects it, because it handles
 no benchmark targets yet.
@@ -106,7 +106,7 @@ GitHub Actions runs a Python preflight over the submitted files first. If that
 passes, it installs Lean using the base template's `lean-toolchain`, runs the
 full verifier, posts a compact benchmark summary, and uploads the verifier
 artifacts. The comment links to the workflow run, the readable and JSON results,
-the website benchmark data, and an archived source snapshot on the
+the benchmark index, and an archived source snapshot on the
 `submission-results` branch. Workflow artifacts and diagnostic logs are kept for
 90 days. A successful submission PR is closed automatically only after its
 results and source have been archived.
@@ -138,11 +138,12 @@ it. If you are optimizing for gates, optimize for gates.
 
 ## Results
 
-Results are published on the
-[leaderboard website](https://verifiedqc.github.io/ShorTableOptimization/).
-The landing page is the RSA-2048 gate count and the plan that achieves it; the
-per-target benchmark is on `targets.html`, linked from it. Both pages let you
-plan any operand width.
+`leaderboard/best-known.md` on `main` is the per-target champion table, written
+by promotion. The per-policy results and source archives live on the
+`submission-results` branch.
+
+The leaderboard website was retired once the Qualtran T-count model replaced the
+browser planner; `site-final` tags the last commit that carried it.
 
 Current promoted metrics are in
 [`leaderboard/best-known.md`](leaderboard/best-known.md).

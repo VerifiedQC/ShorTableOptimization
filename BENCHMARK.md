@@ -47,7 +47,7 @@ submission:
 
 ## Recursive Planning
 
-The website also provides a separate, width-dependent estimate for recursive
+The recursive planner provides a separate, width-dependent estimate for
 multiplication. Given any positive integer bit length `n`, it automatically
 selects a verified `PhaseProduct` policy and `k` at each recursion level to
 minimize the ForShor-compatible logical gate count. It reports the selected
@@ -59,8 +59,7 @@ validation are documented in [RECURSIVE_COST_MODEL.md](RECURSIVE_COST_MODEL.md).
 
 ## Published Results
 
-The current per-target champions are displayed on the
-[leaderboard website](https://verifiedqc.github.io/ShorTableOptimization/).
+The current per-target champions are in `leaderboard/best-known.md` on `main`.
 
 For each successful submission, CI publishes:
 
@@ -74,8 +73,8 @@ For each successful submission, CI publishes:
   operation kind.
 - `source.zip`: the portable policy Lean source, retained so it can be inspected
   or reprocessed later.
-- `leaderboard/results.json`: the website-oriented policy registry and current
-  per-target champions.
+- `leaderboard/results.json`: the policy registry and current per-target
+  champions. It is `scripts/promote.py`'s input.
 - `leaderboard/best-known.md`: the readable metric table generated with the
   promoted best-known policy.
 

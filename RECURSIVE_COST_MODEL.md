@@ -112,7 +112,7 @@ After any update, check that the planner still reports the same totals, because
 these are the figures the write-up quotes:
 
     lake env lean --run scripts/tests/RecursiveCostOracle.lean \
-      --model=v3 --best-known 1024 2048 4096 8192 16384
+      --best-known 1024 2048 4096 8192 16384
 
     1024   1649629   3    147    213
     2048   4343539   4    726    689
@@ -423,6 +423,6 @@ object as `rippleAdderGateBound` and is not a cost the operative model charges.
 A `v3-loose4kw` variant substituting that bound used to exist as a sensitivity
 comparison. It was never the companion's model and is gone, as is `v2`, whose
 upstream counterpart the companion deleted. The version string survives in
-`modelVersion` and in the oracle's `--model=` selector, which still rejects
-anything but `v3`, so an invocation naming a retired model fails loudly instead
-of being silently reinterpreted.
+`modelVersion`. The oracle's `--model=` selector is gone -- with one model it
+selected nothing -- but it is refused by name rather than ignored, so an
+invocation naming a retired model fails loudly instead of being read as a width.
