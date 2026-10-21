@@ -633,15 +633,19 @@ def scan_accepted_sources(repo: Path) -> None:
         raise ValueError("; ".join(failures))
 
 
-def audit_accepted_axioms(repo: Path, records: list[dict[str, Any]]) -> None:
-    """Audit every installed (module, mode, k) the composed generator can reach,
-    champions and catalogue-only tables alike: `#print axioms` stays within
-    `ALLOWED_AXIOMS`, and `generatedPoints_valid` / `generate_safe` re-elaborate
-    by `decide` for the claimed target. A catalogue-only table with a `sorry` or
-    a `handles` it cannot prove is caught here rather than reaching the planner."""
+def audit_source(records: list[dict[str, Any]]) -> list[str]:
+    """The Lean file the audit elaborates.
+
+    Every module named below is imported by name. `BestKnown` reaches only the
+    champion modules, so a catalogue-only table is otherwise an unknown
+    identifier: the audit would fail to build rather than fail to prove, which
+    is the same red check for the wrong reason."""
     modules = sorted({record["module_id"] for record in records})
-    source = [
-        "import TableGeneration.BestKnown",
+    source = ["import TableGeneration.BestKnown"]
+    source += [
+        f"import TableGeneration.Policies.Accepted.{module}" for module in modules
+    ]
+    source += [
         "",
         "open TableGeneration",
         "open TableGeneration.Operations",
@@ -665,6 +669,16 @@ def audit_accepted_axioms(repo: Path, records: list[dict[str, Any]]) -> None:
             f"#check {name}.generate_safe .{mode} {k} "
             "(by decide) (by decide)"
         )
+    return source
+
+
+def audit_accepted_axioms(repo: Path, records: list[dict[str, Any]]) -> None:
+    """Audit every installed (module, mode, k) the composed generator can reach,
+    champions and catalogue-only tables alike: `#print axioms` stays within
+    `ALLOWED_AXIOMS`, and `generatedPoints_valid` / `generate_safe` re-elaborate
+    by `decide` for the claimed target. A catalogue-only table with a `sorry` or
+    a `handles` it cannot prove is caught here rather than reaching the planner."""
+    source = audit_source(records)
     with tempfile.TemporaryDirectory() as tmp:
         source_path = Path(tmp) / "PromotionAxioms.lean"
         source_path.write_text("\n".join(source) + "\n", encoding="utf-8")

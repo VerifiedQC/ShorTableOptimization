@@ -53,6 +53,25 @@ def test_triple_product_champion_is_kept():
     assert ("Ptp", "PhaseTripleProduct", 3) in audited
 
 
+def test_every_audited_module_is_imported():
+    # BestKnown imports champions only, so a catalogue-only module needs its own
+    # import or the audit dies on an unknown identifier instead of auditing it.
+    records = promote.audit_records([_champion("Pchamp", 4)], [_catalog("Pcat", 4)])
+    source = promote.audit_source(records)
+    imports = {line.split()[1] for line in source if line.startswith("import ")}
+    for record in records:
+        module = f"TableGeneration.Policies.Accepted.{record['module_id']}"
+        assert module in imports, f"{module} is audited but never imported"
+
+
+def test_imports_precede_commands():
+    # Lean rejects an import after the first command.
+    source = promote.audit_source(promote.audit_records([_champion("Pa", 4)], []))
+    last_import = max(i for i, line in enumerate(source) if line.startswith("import "))
+    first_cmd = min(i for i, line in enumerate(source) if line.startswith("#"))
+    assert last_import < first_cmd, source
+
+
 def test_records_are_ordered_deterministically():
     selections = [_champion("Pb", 5), _champion("Pa", 4)]
     unbounded = [_catalog("Pc", 6)]
