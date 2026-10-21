@@ -72,12 +72,9 @@ jobs:
           python3 ../verifier/scripts/verifier.py --out-dir artifacts --preflight-only
 
       - name: Install Lean
+        # From the trusted `verifier` checkout, never the fork's tree.
         working-directory: verifier
-        run: |
-          set -euo pipefail
-          curl -sSf https://raw.githubusercontent.com/leanprover/elan/55dc2814ca42ace25f05ba4dd7a43a8c701a0549/elan-init.sh \
-            | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+        run: ./scripts/ci/install_lean.sh
 
       # Restore the build cache produced by `lean-build-cache.yml` on `main`.
       #

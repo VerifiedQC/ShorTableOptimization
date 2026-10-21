@@ -23,11 +23,17 @@ concurrency:
 jobs:
   promote:
     name: Construct and Verify Promotion
+    # On a pull request this costs an hour, so it runs only when the pull
+    # request touches something promotion builds or verifies. Every other event
+    # runs it unconditionally -- `changes` has no base to diff against there and
+    # reports `promotion=true`, and those are the events that can write `main`.
+    needs: changes
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'pull_request' ||
-      github.event_name == 'push' ||
-      github.event.workflow_run.conclusion == 'success'
+      needs.changes.outputs.promotion == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event_name == 'pull_request' ||
+       github.event_name == 'push' ||
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # No write access: this job builds and runs untrusted archived Lean. It
@@ -65,11 +71,7 @@ jobs:
 
       - name: Install Lean
         working-directory: source
-        run: |
-          set -euo pipefail
-          curl -sSf https://raw.githubusercontent.com/leanprover/elan/55dc2814ca42ace25f05ba4dd7a43a8c701a0549/elan-init.sh \
-            | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+        run: ./scripts/ci/install_lean.sh
 
       # `lean-build-cache.yml` saves these from the repository root. A cache's
       # version is a hash of its `path`, so an entry saved at `.lake/packages`
@@ -168,6 +170,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      # To dispatch `lean-build-cache.yml` after publishing. A `GITHUB_TOKEN`
+      # push starts no workflow runs, but an explicit `workflow_dispatch` does.
+      actions: write
     steps:
       - name: Checkout main
         uses: actions/checkout@v7
@@ -197,17 +202,22 @@ jobs:
           rm -rf generated
 
       - name: Promote to main
+        env:
+          # `gh workflow run` needs a token; the checkout's git credentials
+          # cover the two pushes.
+          GH_TOKEN: ${{ github.token }}
         run: python3 scripts/ci/publish_promotion.py
 
   # Which paths can change the cost model. A pull request that touches none of
   # them cannot move the Lean/JS differential, so the sweep is skipped. Pushes
   # to main always run it.
   changes:
-    name: Detect cost-model changes
+    name: Detect relevant changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       model: ${{ steps.filter.outputs.model }}
+      promotion: ${{ steps.filter.outputs.promotion }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -221,18 +231,32 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+          # Off a pull request there is no base to diff against, so assume both.
           if [ -z "${BASE:-}" ]; then
             echo "model=true" >> "$GITHUB_OUTPUT"
+            echo "promotion=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           # Three dots: compare against the merge base, so commits that landed on
           # `main` after the branch started are not reported as this PR's changes.
           changed=$(git diff --name-only "$BASE...$HEAD")
           echo "$changed"
+
+          # Can the Lean/JS cost model have moved?
           if echo "$changed" | grep -qE '^(TableGeneration/|TableGeneration\.lean|scripts/tests/|scripts/test_recursive_cost\.js|leaderboard/site/recursive-cost\.js|lean-toolchain|lakefile\.lean|lake-manifest\.json|\.github/workflows/table-generation-promotion\.yml)'; then
             echo "model=true" >> "$GITHUB_OUTPUT"
           else
             echo "model=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Can what promotion constructs or verifies have moved? Wider than the
+          # cost model: it includes the promotion and leaderboard tooling, whose
+          # own tests are exactly what a change to them needs to run. A docs-only
+          # pull request matches nothing here and so skips the 60-minute job.
+          if echo "$changed" | grep -qE '^(TableGeneration/|TableGeneration\.lean|leaderboard/|scripts/promote\.py|scripts/leaderboard\.py|scripts/verifier\.py|scripts/ci/|scripts/test_|lean-toolchain|lakefile\.lean|lake-manifest\.json|\.github/workflows/table-generation-promotion\.yml)'; then
+            echo "promotion=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "promotion=false" >> "$GITHUB_OUTPUT"
           fi
 
   # The Lean/JS differential. Runs beside the promotion job rather than inside
@@ -268,11 +292,7 @@ jobs:
           persist-credentials: false
       - name: Install Lean
         working-directory: source
-        run: |
-          set -euo pipefail
-          curl -sSf https://raw.githubusercontent.com/leanprover/elan/55dc2814ca42ace25f05ba4dd7a43a8c701a0549/elan-init.sh \
-            | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+        run: ./scripts/ci/install_lean.sh
 
       # `lean-build-cache.yml` saves these from the repository root. A cache's
       # version is a hash of its `path`, so an entry saved at `.lake/packages`
