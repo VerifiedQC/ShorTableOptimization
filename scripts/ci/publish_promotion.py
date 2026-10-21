@@ -45,6 +45,22 @@ def run(args: list[str], *, capture: bool = False) -> str:
     return (completed.stdout or "").rstrip("\n")
 
 
+def best_effort(args: list[str], what: str) -> bool:
+    """Run a follow-up that must not fail the promotion.
+
+    Used only after `main` has been pushed. A non-zero exit is reported and
+    swallowed: the promotion itself succeeded, and failing the job here would
+    read as though nothing had landed.
+    """
+    try:
+        run(args)
+    except (RuntimeError, OSError) as exc:
+        print(f"warning: could not {what}: {exc}")
+        return False
+    print(f"done: {what}")
+    return True
+
+
 def changed_paths() -> list[str]:
     output = run(
         ["git", "status", "--short", "--untracked-files=all"],
@@ -93,27 +109,13 @@ def main() -> int:
         ]
     )
     run(["git", "add", "--", *paths])
-    # No `[skip ci]` here, but it buys nothing: a push made with `GITHUB_TOKEN`
-    # starts no workflow runs at all, so `[skip ci]` would be redundant rather
-    # than harmful. Observed 2026-10-21 on promotion `67053f4`, which triggered
-    # no `sync-submission-template.yml` run although every ordinary push to
-    # `main` does.
+    # `[skip ci]` would buy nothing here: a push made with `GITHUB_TOKEN` starts
+    # no workflow runs at all. Observed 2026-10-21 on promotion `67053f4`, which
+    # triggered no `sync-submission-template.yml` run although every ordinary
+    # push to `main` does.
     #
-    # The consequences are real and not yet addressed:
-    # - `sync-submission-template.yml` does not fast-forward the branch
-    #   submitters build on, so it lags by each promotion.
-    # - `lean-build-cache.yml` does not refresh, so the accepted modules a
-    #   promotion installs are absent from the shared cache and every later job
-    #   recompiles them. (Inferred from the same behaviour, not yet observed:
-    #   that workflow filters on `TableGeneration/**`, which `67053f4` did not
-    #   touch.)
-    # - Promotion does not re-trigger itself, so there is no free re-check that
-    #   `main` still agrees with the archive.
-    #
-    # The fix is to act rather than rely on the push: fast-forward
-    # `submission/template` here, and dispatch the cache refresh explicitly
-    # (`workflow_dispatch` does start a run from `GITHUB_TOKEN`), which needs
-    # `actions: write` on the publish job.
+    # So the two things that push used to be relied on for are done explicitly
+    # below, after `main` is published.
     run(["git", "commit", "-m", "feat: promote best-known table policies"])
     # This job fires on push to `main` and takes the better part of an hour, so
     # `main` may have moved since checkout. Only generated paths are touched and
@@ -121,6 +123,19 @@ def main() -> int:
     # non-fast-forward pushes, which this avoids.
     run(["git", "pull", "--rebase", "origin", "main"])
     run(["git", "push", "origin", "HEAD:main"])
+
+    # `main` is published. Neither of the follow-ups below is allowed to fail
+    # the promotion: the result is already safely pushed, and a promotion that
+    # reported failure after writing `main` would be read as "nothing landed".
+    best_effort(
+        ["git", "push", "origin", "HEAD:submission/template"],
+        "fast-forward submission/template",
+    )
+    best_effort(
+        ["gh", "workflow", "run", "lean-build-cache.yml", "--ref", "main"],
+        "dispatch the build-cache refresh",
+    )
+
     report(run(["git", "rev-parse", "--short", "HEAD"], capture=True).strip())
     return 0
 

@@ -92,6 +92,54 @@ def test_generated_paths_land_on_main() -> None:
         assert subject == "feat: promote best-known table policies", subject
 
 
+def test_submission_template_is_fast_forwarded() -> None:
+    # A `GITHUB_TOKEN` push starts no workflow runs, so `sync-submission-template`
+    # never fires after a promotion. Promotion has to move the branch itself.
+    with tempfile.TemporaryDirectory() as tmp:
+        origin, work = fixture(Path(tmp))
+        git(work, "push", "origin", "main:submission/template")
+        write(work, GENERATED, "-- promoted\n")
+        done = promote(work)
+        assert done.returncode == 0, done.stderr + done.stdout
+        main_sha = git(work, "rev-parse", "refs/remotes/origin/main")
+        template = git(work, "ls-remote", str(origin), "refs/heads/submission/template")
+        assert template.split()[0] == main_sha, (
+            f"template at {template.split()[0]!r}, main at {main_sha!r}"
+        )
+
+
+def test_a_failing_follow_up_does_not_fail_the_promotion() -> None:
+    # `main` is already pushed by then. Reporting failure would read as though
+    # nothing had landed.
+    with tempfile.TemporaryDirectory() as tmp:
+        origin, work = fixture(Path(tmp))
+        # Make the template push fail: a non-fast-forward the promotion cannot
+        # resolve, since it never force-pushes.
+        write(work, REPORT, "# divergent\n")
+        git(work, "add", "-A")
+        git(work, "commit", "-m", "divergent template")
+        git(work, "push", "origin", "HEAD:submission/template")
+        git(work, "reset", "--hard", "HEAD~1")
+
+        before = remote_head(origin)
+        write(work, GENERATED, "-- promoted\n")
+        done = promote(work)
+        assert done.returncode == 0, (
+            "a failed follow-up must not fail the promotion\n" + done.stdout + done.stderr
+        )
+        assert remote_head(origin) != before, "main did not move"
+        assert "warning: could not" in done.stdout, done.stdout
+
+
+def test_best_effort_swallows_failure_and_reports_it() -> None:
+    sys.path.insert(0, str(SCRIPT.parent.parent.parent))
+    from scripts.ci import publish_promotion
+
+    assert publish_promotion.best_effort(["false"], "fail on purpose") is False
+    assert publish_promotion.best_effort(["true"], "succeed") is True
+    assert publish_promotion.best_effort(["no-such-binary-xyzzy"], "missing") is False
+
+
 def test_stray_path_is_refused() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         origin, work = fixture(Path(tmp))
