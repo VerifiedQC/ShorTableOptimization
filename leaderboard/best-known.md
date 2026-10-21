@@ -2,7 +2,7 @@
 
 Generated from verified per-target champion policies.
 
-Coverage: **30 of 30** targets.
+Coverage: **29 of 30** targets.
 
 | Target | Weighted cost | Arithmetic ops | Parallel layers | Phase products | Total ops | Generated points |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
