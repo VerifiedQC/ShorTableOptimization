@@ -13,14 +13,23 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: table-generation-results
-  cancel-in-progress: false
+# No concurrency group. With `cancel-in-progress: false` GitHub still keeps only
+# one run waiting and cancels the older pending one, so when two submissions
+# finished together the loser lost its archive, its PR comment and its close --
+# `submission-results` took 6 persists in 10 minutes on 2026-10-13, so this is
+# not hypothetical. `persistFiles` now retries on the 422 that concurrent
+# `updateRef` calls produce, which is the right way to serialise this: at the
+# ref, not by throwing runs away.
 
 jobs:
   report:
     name: Report Result
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.event == 'pull_request'
+    # A cancelled verification run has nothing to report, and reading its
+    # artifacts would be reporting on work that did not finish.
+    if: >-
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.workflow_run.event == 'pull_request') &&
+      github.event.workflow_run.conclusion != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
