@@ -170,6 +170,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      # To dispatch `lean-build-cache.yml` after publishing. A `GITHUB_TOKEN`
+      # push starts no workflow runs, but an explicit `workflow_dispatch` does.
+      actions: write
     steps:
       - name: Checkout main
         uses: actions/checkout@v7
@@ -199,6 +202,10 @@ jobs:
           rm -rf generated
 
       - name: Promote to main
+        env:
+          # `gh workflow run` needs a token; the checkout's git credentials
+          # cover the two pushes.
+          GH_TOKEN: ${{ github.token }}
         run: python3 scripts/ci/publish_promotion.py
 
   # Which paths can change the cost model. A pull request that touches none of
