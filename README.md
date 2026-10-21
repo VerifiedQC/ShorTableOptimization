@@ -193,10 +193,9 @@ Everything downstream of acceptance:
 Benchmark and tooling:
 
 - `leaderboard/config.json` defines the active targets and score weights.
-- `leaderboard/site/index.html` is the static leaderboard website.
 - `scripts/verifier.py` is the CI verifier.
-- `scripts/leaderboard.py` updates the website benchmark JSON from successful
-  verifier artifacts.
+- `scripts/leaderboard.py` builds the benchmark index from successful verifier
+  artifacts. It is `scripts/promote.py`'s only input.
 
 ## Further Reading
 
