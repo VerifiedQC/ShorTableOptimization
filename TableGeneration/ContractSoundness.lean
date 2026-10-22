@@ -25,14 +25,21 @@ shows the Bool check holds exactly when the companion's equation does. The
 submission contract instantiates it at `State.start_state`, so the two
 obligations coincide there.
 
-## What is not proved here
+## Where decider soundness is proved
 
-`progConsumesPts? = true → ProgConsumesPts` and `safeProg? = true → SafeProg`.
-Those need the companion's Prop-valued definitions integrated and a proof that
-follows the recursion through the program. Soundness is the direction that
-matters -- completeness would only govern whether a valid policy could be
-wrongly rejected -- and it remains the one formal gap between this contract and
-the companion's.
+`progConsumesPts? = true → ProgConsumesPts` and `safeProg? = true → SafeProg`
+are proved in `TableGeneration/RecursiveCost/CompanionSoundness.lean`, as
+`progConsumesPts?_sound` and `safeProg?_sound`, with `contract_sound_at_start`
+combining them at `State.start_state`. They were an open gap when this file was
+written and are not one now.
+
+That file sits under `RecursiveCost/` only because it imports the companion,
+and the confinement check allows companion imports nowhere else. It is about
+this contract, not about the gate-count model, so it should move if that
+directory is ever retired.
+
+Completeness is still unproved, and still does not matter here: it would only
+govern whether a valid policy could be wrongly rejected.
 -/
 
 namespace TableGeneration
@@ -75,13 +82,5 @@ theorem returnsToStartCheck_iff {k : Nat} (ops : Prog k) (sigma : State k) :
           exact h
         rw [hEq]
         exact (statesEqual_iff sigma sigma).mpr rfl
-
-/-- The round-trip obligation a submission actually carries, in the companion's
-own form. -/
-theorem returns_to_start_of_contract {k : Nat} {hk : k > 0}
-    {ops : Prog k} {pts : List Point}
-    (h : ProgConsumesPtsSafe hk State.start_state ops pts) :
-    run? ops State.start_state = some State.start_state :=
-  (returnsToStartCheck_iff ops State.start_state).mp h.returns_start
 
 end TableGeneration
