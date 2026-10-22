@@ -663,7 +663,12 @@ def get_changed_files(repo: Path) -> tuple[bool, list[str], str]:
     if has_base["returncode"] != 0:
         return False, [], f"Could not fetch PR base commit {base}."
 
-    diff = run_cmd(["git", "diff", "--name-only", f"{base}...{head}"], repo, 300)
+    # `--no-renames`: with rename detection on, `--name-only` prints only the
+    # destination path, so renaming a protected file into Submission/Policy/
+    # would show up as an allowed add and the delete would never be checked.
+    diff = run_cmd(
+        ["git", "diff", "--no-renames", "--name-only", f"{base}...{head}"], repo, 300
+    )
     if diff["returncode"] != 0:
         return False, [], diff["output"].strip()
 

@@ -20,7 +20,10 @@ Covers the hardening fixes:
   4. `set_option maxHeartbeats 0` (and absurd finite ceilings) are rejected.
 """
 import importlib.util
+import os
 from pathlib import Path
+import subprocess
+import tempfile
 
 _spec = importlib.util.spec_from_file_location(
     "verifier", Path(__file__).with_name("verifier.py")
@@ -178,6 +181,49 @@ def test_real_comments_are_still_stripped():
     # sorry/axiom genuinely inside comments must not be flagged (no false positives).
     src = "def a := 1 -- sorry this is a comment\n/- axiom hidden -/\ndef b := 2\n"
     assert scan(src) == []
+
+
+def test_renamed_protected_file_is_reported_as_a_delete():
+    # `git diff --name-only` with rename detection prints only the destination.
+    # Renaming a protected file into Submission/Policy/ would then look like an
+    # allowed add, and the delete of the protected path would never be checked.
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp)
+        git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        (repo / "TableGeneration/Submission/Policy").mkdir(parents=True)
+        (repo / "TableGeneration/Metrics.lean").write_text("x\n" * 40)
+        (repo / "TableGeneration/Submission/Policy.lean").write_text("p\n")
+        subprocess.run([*git, "add", "-A"], cwd=repo, check=True)
+        subprocess.run([*git, "commit", "-qm", "base"], cwd=repo, check=True)
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+        ).stdout.strip()
+        subprocess.run(
+            [*git, "mv", "TableGeneration/Metrics.lean",
+             "TableGeneration/Submission/Policy/Metrics.lean"],
+            cwd=repo, check=True,
+        )
+        subprocess.run([*git, "commit", "-qm", "rename"], cwd=repo, check=True)
+
+        env = {"TABLE_GEN_BASE_SHA": base, "TABLE_GEN_HEAD_SHA": "HEAD"}
+        saved = {k: os.environ.get(k) for k in env}
+        os.environ.update(env)
+        try:
+            ok, changed, details = verifier.get_changed_files(repo)
+        finally:
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+        assert ok, details
+        assert "TableGeneration/Metrics.lean" in changed, (
+            f"the delete side of a rename must be listed: {changed}"
+        )
+        assert not all(verifier.is_allowed_changed_file(p) for p in changed), (
+            "renaming a protected file away must fail the changed-file check"
+        )
 
 
 if __name__ == "__main__":
