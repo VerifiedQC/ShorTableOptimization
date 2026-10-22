@@ -58,6 +58,7 @@ jobs:
           python3 scripts/test_verifier_hardening.py
           python3 scripts/test_submission_preflight.py
           python3 scripts/test_archive_completeness.py
+          python3 scripts/test_verifier_deadline.py
 
       - name: Run verifier preflight
         working-directory: submission

@@ -64,6 +64,7 @@ jobs:
         run: |
           python3 scripts/test_publish_promotion.py
           python3 scripts/test_archive_completeness.py
+          python3 scripts/test_promote_audit.py
 
       - name: Install Lean
         working-directory: source
