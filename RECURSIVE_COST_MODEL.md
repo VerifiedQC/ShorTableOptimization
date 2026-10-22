@@ -125,11 +125,7 @@ command also prints a trailing `k:childWidth:policy` column, omitted here.)
 These are the totals at `545cf76`, after the October 2026 promotion. They move
 whenever a table is accepted that the planner prefers, so a mismatch is not by
 itself a model change -- check `git log leaderboard/best-known.md` and the
-archive before concluding the cost model moved. `--best-known-unbounded`
-currently reports the same five gate totals and the same `k` chain; it reports a
-lower arithmetic-operation count, because several plans reach the same gate cost
-and the two searches break that tie differently. The agreement on gates is not
-guaranteed -- see the two-catalogue note below.
+archive before concluding the cost model moved.
 
 `scripts/test_cost_model_lean.py` will not catch a change here: it compares the
 planner against itself, so both sides move together. Only the totals above show
@@ -284,26 +280,18 @@ select a different `k` and policy.
   current per-target champion at the same arity is dropped. The gate model
   charges nothing for layers, so without this a table could buy gates with depth
   for free.
-- `archivedCandidatesUnbounded` is every accepted `PhaseProduct` table, bound or
-  not.
+There was a second list, `archivedCandidatesUnbounded`, without that bound. It
+existed because the browser planner read `results.json` directly and filtered on
+product mode alone, so it never saw the bound and the two had to be comparable.
+The browser planner is gone and so is that list: the bounded catalogue is the
+only one, and `--best-known` is the published number.
 
-The Lean planner reads the bounded list by default and the unbounded one under
-`--catalog-unbounded` / `--best-known-unbounded`. **The website reads the
-unbounded set.** It fetches `results.json` and filters on product mode alone; it
-never sees the bound, because the bound lives in the generated Lean catalogue
-and the site does not read Lean.
-
-So the two can disagree, and in October 2026 they did, by 455,436 gates at 2048
-bits, after a `k=3` table with four layers was accepted. They agree again now,
-for a reason that is not a guarantee: a two-layer table reaching the same child
-width was accepted afterwards, so the bound currently costs nothing. Treat
-agreement as something to check, not something to assume, and read
-`--best-known-unbounded` as the published number.
-
-This was checked by `testPublishedNumberDifferential` in the JavaScript mirror,
-which planned over the unbounded catalogue in both languages at 1024, 2048,
-4096, 8192 and 16384. That mirror is gone; the totals table above is what now
-shows the published number has not moved.
+The two did once disagree, by 455,436 gates at 2048 bits in October 2026, after
+a `k=3` table with four layers was accepted. A two-layer table reaching the same
+child width was accepted afterwards, and at the point the second list was
+removed the two agreed on gates at all five published widths. The table dropped
+with it, `651fc8ae389d`, stays archived on `submission-results`; it is simply no
+longer planned over.
 
 ## Initial Metrics
 
@@ -391,8 +379,8 @@ CI checks:
   implementation over exhaustive, boundary, and seeded-random bit lengths;
 - plan-construction checks for representative inputs including
   `16`, `2048`, and `4096`;
-- whole-plan agreement between Lean and the browser calculator over the
-  unbounded catalogue, which is the set the published number is planned over.
+- the Lean-only checks in `scripts/test_cost_model_lean.py` over the catalogue
+  the published number is planned from.
 
 The model version and objective must be included in published results so that a
 future ForShor cost-model change does not silently reinterpret old estimates.
