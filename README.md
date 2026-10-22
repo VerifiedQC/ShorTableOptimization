@@ -15,9 +15,13 @@ best-known generator.
 
 ## Quick Start
 
+Lean is installed with elan, at the toolchain `lean-toolchain` pins. CI does it
+with `scripts/ci/install_lean.sh`, which pins the elan installer revision too;
+locally, any elan install that honours `lean-toolchain` will do.
+
 ```bash
 lake exe cache get          # prebuilt Mathlib artifacts, minutes
-lake build TableGeneration  # build the template
+lake build TableGeneration  # build the library
 ```
 
 `lake exe cache get` is not optional on a fresh checkout. The recursive cost
@@ -26,23 +30,26 @@ Fetching the prebuilt artifacts takes a few minutes; compiling them from source
 takes hours. Nothing the submission contract depends on imports Mathlib, so a
 submission's own proofs stay Mathlib-free.
 
-Checks you can run locally. Only the last needs a built Lean tree; the rest
-finish in under a second.
+Checks you can run locally:
 
 ```bash
-python3 scripts/verifier.py --out-dir artifacts                  # the full verifier
-python3 scripts/verifier.py --out-dir artifacts --preflight-only # structural checks only
-python3 scripts/test_verifier_hardening.py                       # scanner cannot be evaded
-python3 scripts/test_archive_completeness.py                     # admitted files are archived
-python3 scripts/test_publish_promotion.py                        # promotion may only write what it generates
-python3 scripts/check_mathlib_confinement.py                     # Mathlib stays out of the contract
-python3 scripts/test_cost_model_lean.py                          # Lean-only cost-model checks
+python3 scripts/verifier.py --out-dir artifacts --preflight-only # structural checks only, seconds
+python3 scripts/test_verifier_hardening.py                       # scanner cannot be evaded, seconds
+python3 scripts/test_archive_completeness.py                     # admitted files are archived, seconds
+python3 scripts/test_publish_promotion.py                        # promotion may only write what it generates, seconds
+python3 scripts/check_mathlib_confinement.py                     # Mathlib stays out of the contract, seconds
+python3 scripts/verifier.py --out-dir artifacts                  # the full verifier: runs lake build, minutes
+python3 scripts/test_cost_model_lean.py                          # Lean-only cost-model checks: drives Lean, minutes
 ```
 
+The last two need a built Lean tree and are not quick: the full verifier runs
+`lake build` and then elaborates generated Lean files, and the cost-model checks
+drive the Lean oracle. The rest are pure Python over the working tree.
+
 Every one of these runs in CI. Submissions are gated by the verifier plus the
-hardening and archive checks; promotion by the promotion, confinement and
-archive checks; and the Lean cost-model checks run on the ForShor dependency
-bump.
+hardening, preflight and archive checks; promotion by the promotion, confinement
+and archive checks; and the Lean cost-model checks run on the ForShor dependency
+bump (`update-forshor.yml`).
 
 The template passes preflight. The full verifier rejects it, because it handles
 no benchmark targets yet.
@@ -50,7 +57,8 @@ no benchmark targets yet.
 ## Writing a Submission
 
 Replace `implementation` in `TableGeneration/Submission/Policy.lean`. That is
-the only file you need to edit. Helper files may be added at any depth under
+the only file you need to edit, and the only one the changed-file check admits.
+Helper files may be added at any depth under
 `TableGeneration/Submission/Policy/` and imported from `Policy.lean`:
 
 ```lean
@@ -89,9 +97,22 @@ operations and return to the starting state.
 Leave the protected specification, language, metrics, and workflow files alone.
 `Defs.lean` and `Correctness.lean` are fixed adapters.
 
-The verifier rejects changed protected files, `sorry`, `admit`, new `axiom` or
-`constant` declarations, `unsafe`, external implementation hooks, and
-compile-time execution commands such as `#eval` in submitted code.
+The verifier rejects a changed protected file, and rejects these in submitted
+code. This list is the one copy; `AGENTS.md` points here.
+
+- `sorry`, `sorryAx`, `admit`;
+- a new `axiom` or `constant` declaration;
+- `unsafe`;
+- compile-time execution and elaborator extension: `#eval`, `run_cmd`,
+  `run_meta`, `run_elab`, `initialize`, `macro`, `macro_rules`, `elab`,
+  `elab_rules`, `syntax`, `notation`, and the fixity commands;
+- external implementation hooks: `extern`, `implemented_by`;
+- non-kernel computation: `native_decide`, and `decide +native`;
+- unbounded elaboration: `set_option maxHeartbeats 0`, or a ceiling of 10^10 or
+  more.
+
+The accepted axiom set is `propext` alone, and a submitted file may import only
+the contract modules and other accepted policies.
 
 ## Opening a Pull Request
 
@@ -113,28 +134,11 @@ results and source have been archived.
 
 ## Two scores, not one
 
-A submission is measured two different ways, and they do not agree. Read this
-before optimizing anything.
-
-**Per-target score.** Each handled target gets
-`arithmetic_operation_count + 5 * parallel_phase_product_layer_count`. It is
-width-independent, which is the point: it scores a table on its own, without
-reference to any operand size or to any other submission. This decides
-champions and promotion. See [BENCHMARK.md](BENCHMARK.md).
-
-**Gate count.** The recursive planner searches every accepted `PhaseProduct`
-table and reports the lowest logical gate count for an operand width, with
-RSA-2048 as the headline. See
-[RECURSIVE_COST_MODEL.md](RECURSIVE_COST_MODEL.md).
-
-The two disagree because an operation count cannot see how far a program
-**contracts** its operands, and the child width applies to the whole subtree
-below it. At `k = 4` the gate-cheaper table uses 28 operations against 26,
-because it contracts to 533 bits rather than 534.
-
-So a table can lose its target and still lower the gate count. The planner
-searches the full accepted archive rather than the champions, so it will find
-it. If you are optimizing for gates, optimize for gates.
+A submission is measured two ways and they do not agree: the per-target weighted
+cost, which decides champions, and the recursive planner's logical gate count at
+an operand width. A table can lose its target and still lower the gate count.
+[BENCHMARK.md](BENCHMARK.md) describes both and why they disagree;
+`AGENTS.md` says what to do about it if you are optimizing for gates.
 
 ## Results
 
@@ -142,8 +146,8 @@ it. If you are optimizing for gates, optimize for gates.
 by promotion. The per-policy results and source archives live on the
 `submission-results` branch.
 
-The leaderboard website was retired once the Qualtran T-count model replaced the
-browser planner; `site-final` tags the last commit that carried it.
+There is no leaderboard website. The tag `site-final` is the last commit that
+carried one.
 
 Current promoted metrics are in
 [`leaderboard/best-known.md`](leaderboard/best-known.md).
@@ -181,22 +185,41 @@ The submission contract, which is protected and Mathlib-free:
 - `TableGeneration/Metrics.lean` defines operation and layer counts.
 - `TableGeneration/Policy.lean` defines the portable policy interface.
 - `TableGeneration/Baseline.lean` defines the protected general fallback.
-- `TableGeneration/Submission/Policy.lean` contains the submitted policy.
+- `TableGeneration/ContractSoundness.lean` proves that the Bool-valued contract a
+  submitter discharges by `decide` says what the companion's Prop-valued
+  obligations say.
+- `TableGeneration.lean` and `TableGeneration/Submission.lean` are the library
+  roots.
+
+`TableGeneration/Submission/Policy.lean` is the submitted policy and the one file
+a submission changes. It is not protected; `Defs.lean` and `Correctness.lean`
+beside it are.
 
 Everything downstream of acceptance:
 
+- `TableGeneration/Policies/Accepted/` holds every accepted policy, installed
+  verbatim at promotion under its own namespace.
 - `TableGeneration/BestKnown.lean` selects promoted policies before the general
   fallback. It is generated by `scripts/promote.py`.
 - `TableGeneration/RecursiveCost/` holds the recursive gate-count model and the
-  policy planner. It is the only part of the tree that depends on Mathlib and on
-  the `Fast_multiplication` companion.
+  policy planner, with the planner's candidate catalogue in
+  `ArchivedCatalog.lean`, also generated by `scripts/promote.py`. It is the only
+  part of the tree that depends on Mathlib and on the `Fast_multiplication`
+  companion.
 
 Benchmark and tooling:
 
 - `leaderboard/config.json` defines the active targets and score weights.
 - `scripts/verifier.py` is the CI verifier.
 - `scripts/leaderboard.py` builds the benchmark index from successful verifier
-  artifacts. It is `scripts/promote.py`'s only input.
+  artifacts. That index is `scripts/promote.py`'s only input.
+- `scripts/promote.py` constructs and re-checks the composed best-known
+  generator and the planner catalogue from the archive.
+- `scripts/ci/` holds what the workflows call: the Lean installer, the promotion
+  push gate, the benchmark-config export and the PR report.
+- `scripts/tests/` holds the Lean oracle the cost-model checks drive, the
+  champion gate-count differential, and the pinned companion cost-model
+  transcript.
 
 ## Further Reading
 

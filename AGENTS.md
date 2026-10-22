@@ -1,14 +1,22 @@
 # Agent Guidelines
 
-This repository contains a minimal Lean verifier for table-generation
-submissions.
+This repository is a benchmark for table-generation policies: a Lean submission
+contract whose proofs are the acceptance test, a Python verifier and scoring
+pipeline, an archive of accepted policies composed into a best-known generator,
+and a recursive gate-count planner over the accepted `PhaseProduct` tables.
 
 ## Code Boundaries
 
-- Protected verifier code lives in `TableGeneration/Basic.lean`,
-  `TableGeneration/Language.lean`, `TableGeneration/Spec.lean`,
-  `TableGeneration/Metrics.lean`, `TableGeneration/Baseline.lean`,
-  `TableGeneration/Policy.lean`, and `TableGeneration/BestKnown.lean`.
+- The protected set is `PROTECTED_FILES` in `scripts/verifier.py`, which is
+  authoritative: `TableGeneration.lean`, `TableGeneration/Submission.lean`,
+  `TableGeneration/Basic.lean`, `TableGeneration/Language.lean`,
+  `TableGeneration/Spec.lean`, `TableGeneration/Metrics.lean`,
+  `TableGeneration/Baseline.lean`, `TableGeneration/Policy.lean`,
+  `TableGeneration/BestKnown.lean`,
+  `TableGeneration/RecursiveCost/ArchivedCatalog.lean`,
+  `TableGeneration/Submission/Defs.lean`,
+  `TableGeneration/Submission/Correctness.lean`, `leaderboard/config.json`,
+  `lakefile.lean` and `lean-toolchain`.
 - Submission-facing code lives in `TableGeneration/Submission/`.
 - Submitters implement `GeneratorPolicy` in
   `TableGeneration/Submission/Policy.lean`; optional helper Lean files go under
@@ -26,9 +34,8 @@ submissions.
   definitions may be general across modes and `k`, or specialized to selected
   targets with fallback elsewhere.
 - Submission adapters and verifier entry points must match the template.
-- The verifier should reject `sorry`, `admit`, new `axiom` or `constant`
-  declarations, `unsafe`, and compile-time execution commands in submission
-  files.
+- The verifier should reject the constructs listed under "What you may not
+  change" in `README.md`. That list is the single copy; do not restate it here.
 - The verifier should use the base branch's `scripts/verifier.py` in CI.
 - CI should run verifier preflight before installing Lean or building submitted
   Lean code.
@@ -48,43 +55,41 @@ submissions.
 
 ## Which score you are optimizing
 
-Two scores exist and they do not agree. Decide which one you are working on
-before you start, because the better table under one can be the worse table
-under the other.
+Two scores exist and they do not agree; the better table under one can be the
+worse table under the other. `BENCHMARK.md` states both and why they disagree.
+Decide which one you are working on before you start.
 
-**Per-target score**, `arithmetic_operation_count + 5 *
-parallel_phase_product_layer_count`. Width-independent, so it judges a table on
-its own. It decides champions and promotion, and it is what
-`leaderboard/best-known.md` reports.
-
-**Gate count**, the recursive planner's logical gate total at an operand width,
-with 2048 bits as the headline.
-
-They disagree because an operation count cannot see how far a program
-**contracts** its operands, and the child width applies to the entire subtree
-below that node. Concretely, at `k = 4` the gate-cheaper table uses 28
-operations where the other uses 26, because it contracts to 533 bits rather
-than 534. Over the archive, ranking by operations picks the gate-worse table in
-six (arity, width) cells.
+If your goal is the per-target score, optimize operations and layers as
+`BENCHMARK.md` weights them, and stop reading here.
 
 If your goal is gate count:
 
-- Optimize the **child width** first. `nextSignedWidth` in
-  `TableGeneration/RecursiveCost/Model.lean` computes it: a running maximum over
-  a scan of the program, roughly one bit per `addScaled`, `negate` or `shiftL`
-  along a destination chain. It is not a function of how large the coefficients
-  in the table look.
-- Do not optimize the per-target score. A table that loses its target can still
-  lower the gate count, and the planner will still use it: it searches every
-  accepted `PhaseProduct` table, not just the champions.
+- Optimize the **child width** first. It is what the planner's cost turns on,
+  because the child width a table reaches governs the whole subtree below it.
+  `nextSignedWidth` in `TableGeneration/RecursiveCost/Model.lean` computes it:
+  a running maximum over a scan of the program's symbolic widths. The
+  transitions are exact and are written out under "Width transitions" in
+  `RECURSIVE_COST_MODEL.md` -- note that `shiftL i n` adds `n` bits, not one,
+  and that `addScaled dst src _ shift` sets `dst` to
+  `1 + max(dst, src + shift)`. The child width is not a function of how large
+  the coefficients in the table look.
+- Do not optimize the per-target score for this. A table that loses its target
+  can still lower the gate count, and the planner will still use it: it plans
+  over accepted tables, not only the champions.
 - Do not buy gates with depth. The gate model charges nothing for layers, so
-  adding sequential stages to save arithmetic would otherwise be free. A
-  candidate deeper than the current champion at the same arity is kept out of
-  `archivedCandidates`, the catalogue the planner searches. It stays archived on
-  `submission-results`, but it will not be planned over, so it cannot move the
-  published number.
-- Measure before submitting:
-  `lake env lean --run scripts/tests/RecursiveCostOracle.lean --best-known 2048`.
+  adding sequential stages to save arithmetic would otherwise be free. A table
+  deeper than the current champion at its arity is kept out of the planner's
+  catalogue; `RECURSIVE_COST_MODEL.md` explains that bound.
+- There is no command that prices a table the archive has not accepted. The
+  planner plans over `archivedCandidates`, which `scripts/promote.py` generates
+  from accepted results, so before acceptance the thing to check is the child
+  width, by hand against the transitions above. On a `main` checkout,
+
+      lake env lean --run scripts/tests/RecursiveCostOracle.lean --best-known 2048
+
+  prints the current published plan -- the number to beat, not yours. Its last
+  column is `k:childWidth:policy` for the top-level choice, which is the child
+  width your table has to undercut at that arity.
 
 Only `PhaseProduct` reaches the planner. `PhaseTripleProduct` has no gate model,
 so those targets are scored structurally and never priced in gates.
