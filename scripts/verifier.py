@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import json
 import os
 from pathlib import Path
@@ -15,6 +14,21 @@ import tempfile
 import time
 import zipfile
 from typing import Any
+
+# This file runs three ways: standalone from the trusted checkout
+# (`python3 ../verifier/scripts/verifier.py`), as `scripts.verifier` from
+# promote.py, and loaded by file path from the tests. Only the first puts
+# `scripts/` on the path, so add this repo's root for the shared helpers in
+# `scripts/leaderboard.py`. Appended, never prepended: it must not shadow the
+# standard library.
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from scripts.leaderboard import (  # noqa: E402
+    utc_now,
+    validate_config,
+    validate_targets,
+    weighted_cost,
+)
 
 
 CHALLENGE = "table-generation"
@@ -46,7 +60,6 @@ BENCHMARK_METRIC_FIELDS = [
     "total_operation_count",
     "point_count",
 ]
-VALID_TARGET_MODES = {"PhaseProduct", "PhaseTripleProduct"}
 SUBMISSION_DIR = Path("TableGeneration/Submission")
 DEFS_FILE = SUBMISSION_DIR / "Defs.lean"
 CORRECTNESS_FILE = SUBMISSION_DIR / "Correctness.lean"
@@ -215,10 +228,6 @@ def _import_is_allowed(module: str) -> bool:
     return False
 
 
-def utc_now() -> str:
-    return dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
-
-
 # Keep every subprocess timeout strictly below the CI job's wall clock
 # (45 minutes for the submission workflow). If a subprocess outlives the job,
 # the run dies as an opaque cancellation instead of a verifier error naming the
@@ -304,20 +313,6 @@ def skipped_result(name: str, details: str) -> dict[str, str]:
     return {"name": name, "status": "skipped", "details": details}
 
 
-def validate_target(raw: Any, source: str) -> tuple[dict[str, Any] | None, str | None]:
-    if not isinstance(raw, dict):
-        return None, f"{source} must be an object."
-    mode = str(raw.get("mode", "")).strip()
-    if mode not in VALID_TARGET_MODES:
-        return None, f"{source}.mode must be PhaseProduct or PhaseTripleProduct."
-    k_raw = raw.get("k")
-    if not isinstance(k_raw, int):
-        return None, f"{source}.k must be an integer."
-    if k_raw < 2:
-        return None, f"{source}.k must be at least 2."
-    return {"mode": mode, "k": k_raw}, None
-
-
 def read_target_config() -> tuple[list[dict[str, Any]] | None, str | None]:
     targets_raw = os.getenv("TABLE_GEN_TARGETS", "").strip()
     if targets_raw:
@@ -329,59 +324,22 @@ def read_target_config() -> tuple[list[dict[str, Any]] | None, str | None]:
             return None, "TABLE_GEN_TARGETS must be a JSON array."
         if not parsed:
             return None, None
-        targets: list[dict[str, Any]] = []
-        seen: set[tuple[str, int]] = set()
-        for index, raw in enumerate(parsed):
-            target, error = validate_target(raw, f"TABLE_GEN_TARGETS[{index}]")
-            if error:
-                return None, error
-            assert target is not None
-            key = (target["mode"], target["k"])
-            if key in seen:
-                return None, f"Duplicate target {target['mode']} k={target['k']}."
-            seen.add(key)
-            targets.append(target)
-        return targets, None
-
-    mode = os.getenv("TABLE_GEN_TARGET_MODE", "").strip()
-    k_raw = os.getenv("TABLE_GEN_TARGET_K", "").strip()
-    if not mode and not k_raw:
-        config_path = Path(__file__).resolve().parents[1] / "leaderboard" / "config.json"
         try:
-            config = json.loads(config_path.read_text(encoding="utf-8"))
-            matrix = config["target_matrix"]
-            modes = matrix["modes"]
-            k_min = matrix["k_min"]
-            k_max = matrix["k_max"]
-        except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
-            return None, f"Could not read benchmark targets from {config_path}: {exc}"
-        if (
-            not isinstance(modes, list)
-            or not modes
-            or any(item not in VALID_TARGET_MODES for item in modes)
-            or len(set(modes)) != len(modes)
-            or not isinstance(k_min, int)
-            or isinstance(k_min, bool)
-            or not isinstance(k_max, int)
-            or isinstance(k_max, bool)
-            or k_min < 2
-            or k_max < k_min
-        ):
-            return None, f"Benchmark target matrix in {config_path} is invalid."
-        return [
-            {"mode": item, "k": k}
-            for k in range(k_min, k_max + 1)
-            for item in modes
-        ], None
+            return validate_targets(parsed, "TABLE_GEN_TARGETS"), None
+        except ValueError as exc:
+            return None, f"{exc}."
+
+    # No CI override: fall back to this checkout's own config, through the same
+    # validator `scripts/ci/export_benchmark_config.py` uses to produce
+    # TABLE_GEN_TARGETS, so a local run and CI derive the matrix identically.
+    config_path = Path(__file__).resolve().parents[1] / "leaderboard" / "config.json"
     try:
-        k = int(k_raw)
-    except ValueError:
-        return None, "TABLE_GEN_TARGET_K must be an integer."
-    target, error = validate_target({"mode": mode, "k": k}, "TABLE_GEN_TARGET")
-    if error:
-        return None, error
-    assert target is not None
-    return [target], None
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        if not isinstance(config, dict):
+            raise ValueError("config must be a JSON object")
+        return validate_config(config), None
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        return None, f"Could not read benchmark targets from {config_path}: {exc}"
 
 
 def validate_score_weights(
@@ -1303,10 +1261,6 @@ def summary_detail(text: object, limit: int = 260) -> str:
     if len(detail) <= limit:
         return detail
     return detail[: limit - 3].rstrip() + "..."
-
-
-def weighted_cost(metrics: dict[str, Any], weights: dict[str, int]) -> int:
-    return sum(weights[field] * metrics[field] for field in SCORE_FIELDS)
 
 
 def build_benchmark_result(result: dict[str, Any]) -> dict[str, Any] | None:
