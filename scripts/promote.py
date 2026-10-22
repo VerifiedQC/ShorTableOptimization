@@ -13,7 +13,7 @@ import tempfile
 from typing import Any
 import zipfile
 
-from scripts.leaderboard import validate_config, weighted_cost
+from scripts.leaderboard import read_json, validate_config, weighted_cost
 from scripts.verifier import (
     ALLOWED_AXIOMS,
     BANNED_PATTERNS,
@@ -42,13 +42,6 @@ METRIC_FIELDS = (
     "point_count",
     "weighted_cost",
 )
-
-
-def read_json(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise ValueError(f"{path} must contain a JSON object")
-    return value
 
 
 def module_id(policy_id: str) -> str:
@@ -206,39 +199,24 @@ def dispatch_lines(
     return lines
 
 
-def champion_layer_bound(leaderboard: dict[str, Any]) -> dict[int, int]:
+def champion_layer_bound(champions: list[dict[str, Any]]) -> dict[int, int]:
     """Parallel phase-product layers of the champion at each catalogue arity.
 
     The planner minimises gates and the gate model charges nothing for depth, so
     without a bound a table could buy gates by adding sequential layers. Until
     the benchmark states a depth rule of its own, the champion's layer count is
     the bound: a candidate may match it but not exceed it.
+
+    Takes `selected_champions`' output: resolving champion -> policy -> metrics a
+    second time here is how the two could have disagreed about who the champion
+    at an arity is.
     """
-    policies = policy_by_id(leaderboard)
     bound: dict[int, int] = {}
-    for champion in leaderboard.get("champions", []):
-        if champion.get("mode") != CATALOG_MODE:
+    for champion in champions:
+        if champion["mode"] != CATALOG_MODE:
             continue
-        k = champion.get("k")
-        ids = champion.get("policy_ids")
-        if not isinstance(k, int) or not isinstance(ids, list) or not ids:
-            raise ValueError("leaderboard champion target is invalid")
-        policy = policies.get(sorted(ids)[0])
-        if policy is None:
-            raise ValueError(f"champion policy for {CATALOG_MODE} k={k} is missing")
-        metrics = next(
-            (
-                item
-                for item in policy.get("results", [])
-                if isinstance(item, dict)
-                and item.get("mode") == CATALOG_MODE
-                and item.get("k") == k
-            ),
-            None,
-        )
-        if metrics is None:
-            raise ValueError(f"champion lacks {CATALOG_MODE} k={k} metrics")
-        layers = metrics.get("parallel_phase_product_layer_count")
+        k = champion["k"]
+        layers = champion["metrics"].get("parallel_phase_product_layer_count")
         if not isinstance(layers, int):
             raise ValueError(f"champion {CATALOG_MODE} k={k} has no layer count")
         bound[k] = layers
@@ -248,6 +226,7 @@ def champion_layer_bound(leaderboard: dict[str, Any]) -> dict[int, int]:
 def catalog_entries(
     leaderboard: dict[str, Any],
     config_targets: list[dict[str, Any]],
+    champions: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Every accepted PhaseProduct table, champion or not, as planner candidates.
 
@@ -259,7 +238,7 @@ def catalog_entries(
     configured = {
         target["k"] for target in config_targets if target["mode"] == CATALOG_MODE
     }
-    layer_bound = champion_layer_bound(leaderboard)
+    layer_bound = champion_layer_bound(champions)
     entries: list[dict[str, Any]] = []
     for policy in leaderboard.get("policies", []):
         policy_id = policy.get("policy_id")
@@ -481,7 +460,7 @@ def construct(
     config_targets: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     selections = selected_champions(leaderboard, config_targets)
-    entries = catalog_entries(leaderboard, config_targets)
+    entries = catalog_entries(leaderboard, config_targets, selections)
     module_ids: dict[str, str] = {}
     for record in [*selections, *entries]:
         previous = module_ids.setdefault(record["module_id"], record["policy_id"])
@@ -702,22 +681,12 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", default=".", help="Repository to update.")
     parser.add_argument("--results-root", required=True, help="submission-results tree.")
-    parser.add_argument(
-        "--leaderboard",
-        default="",
-        help="Leaderboard JSON; defaults below --results-root.",
-    )
     parser.add_argument("--generate-only", action="store_true")
     args = parser.parse_args()
 
     repo = Path(args.repo).resolve()
     results_root = Path(args.results_root).resolve()
-    leaderboard_path = (
-        Path(args.leaderboard).resolve()
-        if args.leaderboard
-        else results_root / "leaderboard/results.json"
-    )
-    leaderboard = read_json(leaderboard_path)
+    leaderboard = read_json(results_root / "leaderboard/results.json")
     if leaderboard.get("schema_version") != 3:
         raise ValueError("leaderboard schema_version must be 3")
     config = read_json(repo / "leaderboard/config.json")

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Regression tests for verifier banned-token scanner hardening.
+"""Regression tests for verifier hardening.
 
 Run: python3 scripts/test_verifier_hardening.py
 
-Covers the hardening fixes:
+Covers the banned-token scanner, the changed-file check and the benchmark
+target derivation. The scanner fixes:
   1. `strip_lean_comments` is literal-aware across string, raw-string and
      character literals, so a banned token cannot be hidden from the scanner by
      bracketing it between `"/-"` ... `"-/"` literals, nor by using a `'"'`
@@ -20,13 +21,21 @@ Covers the hardening fixes:
   4. `set_option maxHeartbeats 0` (and absurd finite ceilings) are rejected.
 """
 import importlib.util
+import json
+import os
 from pathlib import Path
+import sys
+import subprocess
+import tempfile
 
 _spec = importlib.util.spec_from_file_location(
     "verifier", Path(__file__).with_name("verifier.py")
 )
 verifier = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(verifier)
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts import leaderboard  # noqa: E402
 
 
 def scan(text: str) -> list[str]:
@@ -178,6 +187,92 @@ def test_real_comments_are_still_stripped():
     # sorry/axiom genuinely inside comments must not be flagged (no false positives).
     src = "def a := 1 -- sorry this is a comment\n/- axiom hidden -/\ndef b := 2\n"
     assert scan(src) == []
+
+
+def test_renamed_protected_file_is_reported_as_a_delete():
+    # `git diff --name-only` with rename detection prints only the destination.
+    # Renaming a protected file into Submission/Policy/ would then look like an
+    # allowed add, and the delete of the protected path would never be checked.
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp)
+        git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        (repo / "TableGeneration/Submission/Policy").mkdir(parents=True)
+        (repo / "TableGeneration/Metrics.lean").write_text("x\n" * 40)
+        (repo / "TableGeneration/Submission/Policy.lean").write_text("p\n")
+        subprocess.run([*git, "add", "-A"], cwd=repo, check=True)
+        subprocess.run([*git, "commit", "-qm", "base"], cwd=repo, check=True)
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+        ).stdout.strip()
+        subprocess.run(
+            [*git, "mv", "TableGeneration/Metrics.lean",
+             "TableGeneration/Submission/Policy/Metrics.lean"],
+            cwd=repo, check=True,
+        )
+        subprocess.run([*git, "commit", "-qm", "rename"], cwd=repo, check=True)
+
+        env = {"TABLE_GEN_BASE_SHA": base, "TABLE_GEN_HEAD_SHA": "HEAD"}
+        saved = {k: os.environ.get(k) for k in env}
+        os.environ.update(env)
+        try:
+            ok, changed, details = verifier.get_changed_files(repo)
+        finally:
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+        assert ok, details
+        assert "TableGeneration/Metrics.lean" in changed, (
+            f"the delete side of a rename must be listed: {changed}"
+        )
+        assert not all(verifier.is_allowed_changed_file(p) for p in changed), (
+            "renaming a protected file away must fail the changed-file check"
+        )
+
+
+def _targets(**env) -> tuple:
+    saved = {k: os.environ.get(k) for k in
+             ("TABLE_GEN_TARGETS", "TABLE_GEN_TARGET_MODE", "TABLE_GEN_TARGET_K")}
+    for key in saved:
+        os.environ.pop(key, None)
+    os.environ.update(env)
+    try:
+        return verifier.read_target_config()
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def test_targets_fall_back_to_this_checkouts_config():
+    # No TABLE_GEN_TARGETS (a local run): the fallback must derive exactly what
+    # export_benchmark_config.py would have put in the environment, through the
+    # same validator. A second copy of the matrix rules here would drift.
+    config = json.loads(
+        (Path(__file__).resolve().parents[1] / "leaderboard" / "config.json").read_text()
+    )
+    targets, error = _targets()
+    assert error is None, error
+    assert targets == leaderboard.validate_config(config), targets
+
+
+def test_retired_single_target_env_vars_do_not_narrow_scoring():
+    # TABLE_GEN_TARGET_MODE/_K were never set by any workflow. If that branch
+    # came back, these would silently score one target instead of the matrix.
+    targets, error = _targets(TABLE_GEN_TARGET_MODE="PhaseProduct", TABLE_GEN_TARGET_K="4")
+    assert error is None, error
+    assert len(targets) > 1, targets
+
+
+def test_duplicate_targets_are_rejected():
+    targets, error = _targets(
+        TABLE_GEN_TARGETS='[{"mode":"PhaseProduct","k":4},{"mode":"PhaseProduct","k":4}]'
+    )
+    assert targets is None and "duplicate" in error.lower(), (targets, error)
 
 
 if __name__ == "__main__":
