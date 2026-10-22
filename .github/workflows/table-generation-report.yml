@@ -35,7 +35,8 @@ jobs:
     env:
       SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
     permissions:
-      actions: read
+      # `write` so this job can dispatch promotion itself; see the last step.
+      actions: write
       contents: write
       issues: write
       pull-requests: write
@@ -91,3 +92,20 @@ jobs:
           script: |
             const reporting = require('./scripts/ci/table_generation_report.js');
             await reporting.reportPullRequestResult({ github, context, core });
+
+      # Promotion used to trigger on this workflow's `workflow_run` conclusion.
+      # That conclusion is `success` almost unconditionally -- the persist step
+      # is `continue-on-error` and the comment step is `if: always()` -- so a
+      # submission that FAILED verification still started the hour-long
+      # promotion. Which runs promoted was therefore decided by a side effect
+      # rather than stated.
+      #
+      # Start it explicitly, only when results were actually archived. Note the
+      # absence of `continue-on-error`: if the dispatch fails, this job fails
+      # loudly. The alternative -- swallowing it -- would stop promotion
+      # happening at all with nothing to show for it.
+      - name: Start promotion
+        if: steps.persist.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run table-generation-promotion.yml --ref main
