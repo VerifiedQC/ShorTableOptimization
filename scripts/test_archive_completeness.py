@@ -214,7 +214,10 @@ def test_catalog_excludes_tables_deeper_than_the_champion():
     targets = [{"mode": "PhaseProduct", "k": 4}]
     # champion has 3 layers; challengers have 2, 3 and 4.
     board = _leaderboard([3, 2, 3, 4])
-    kept = {entry["policy_id"] for entry in promote.catalog_entries(board, targets)}
+    champions = promote.selected_champions(board, targets)
+    kept = {
+        entry["policy_id"] for entry in promote.catalog_entries(board, targets, champions)
+    }
     shallower, equal, deeper = (
         board["policies"][1]["policy_id"],
         board["policies"][2]["policy_id"],
@@ -226,11 +229,28 @@ def test_catalog_excludes_tables_deeper_than_the_champion():
 
 
 def test_catalog_keeps_every_table_at_the_champion_depth():
-    """The bound is a no-op when nothing exceeds it, as in the real archive."""
+    """The bound is a no-op when nothing exceeds it."""
     targets = [{"mode": "PhaseProduct", "k": 4}]
     board = _leaderboard([3, 3, 3])
-    kept = promote.catalog_entries(board, targets)
+    kept = promote.catalog_entries(board, targets, promote.selected_champions(board, targets))
     assert len(kept) == 3, "no table at the bound may be dropped"
+
+
+def test_layer_bound_follows_the_selected_champion():
+    # The bound used to resolve champion -> policy -> metrics on its own. Tying
+    # it to selected_champions' output is what stops the two disagreeing about
+    # which policy is the champion at an arity.
+    targets = [{"mode": "PhaseProduct", "k": 4}]
+    board = _leaderboard([3, 2, 4])
+    champions = promote.selected_champions(board, targets)
+    assert promote.champion_layer_bound(champions) == {4: 3}
+    # Move the champion slot to the 2-layer table: the bound must follow the
+    # policy selected_champions resolved, not any other entry in the board.
+    ids = sorted(policy["policy_id"] for policy in board["policies"])
+    board["champions"][0]["policy_ids"] = [ids[2], ids[1]]
+    champions = promote.selected_champions(board, targets)
+    assert champions[0]["policy_id"] == ids[1], "policy_ids ties break on the lowest id"
+    assert promote.champion_layer_bound(champions) == {4: 2}
 
 
 if __name__ == "__main__":
