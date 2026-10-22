@@ -183,14 +183,6 @@ def main (args : List String) : IO Unit := do
   | "--catalog" :: _ =>
       for candidate in archivedCandidates do
         IO.println (candidateLine candidate)
-  -- The leaderboard site plans over every accepted table; `promote.py` drops
-  -- those deeper than the champion at their arity. These two modes expose the
-  -- site's candidate set so the differential can compare like with like.
-  | "--catalog-unbounded" :: _ =>
-      for candidate in archivedCandidatesUnbounded do
-        IO.println (candidateLine candidate)
-  | "--best-known-unbounded" :: rawWidths =>
-      printPlans archivedCandidatesUnbounded rawWidths
   | "--best-known" :: rawWidths =>
       printPlans archivedCandidates rawWidths
   | "--reference" :: rawWidths =>

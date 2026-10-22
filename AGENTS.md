@@ -80,16 +80,11 @@ If your goal is gate count:
 - Do not buy gates with depth. The gate model charges nothing for layers, so
   adding sequential stages to save arithmetic would otherwise be free. A
   candidate deeper than the current champion at the same arity is kept out of
-  `archivedCandidates`, the bounded catalogue the planner searches by default.
-  It is still archived, and still appears in `archivedCandidatesUnbounded`. So a
-  deeper table can move the archive-wide number while the default says it
-  changed nothing; see
-  [RECURSIVE_COST_MODEL.md](RECURSIVE_COST_MODEL.md) for which catalogue is
-  which.
-- Measure before submitting, both ways. They should agree; when they do not, the
-  second is the archive-wide number:
-  `lake env lean --run scripts/tests/RecursiveCostOracle.lean --best-known 2048`
-  and the same command with `--best-known-unbounded`.
+  `archivedCandidates`, the catalogue the planner searches. It stays archived on
+  `submission-results`, but it will not be planned over, so it cannot move the
+  published number.
+- Measure before submitting:
+  `lake env lean --run scripts/tests/RecursiveCostOracle.lean --best-known 2048`.
 
 Only `PhaseProduct` reaches the planner. `PhaseTripleProduct` has no gate model,
 so those targets are scored structurally and never priced in gates.
@@ -117,8 +112,8 @@ so those targets are scored structurally and never priced in gates.
 - Run `lake build TableGeneration` after Lean changes.
 - Run `python3 scripts/test_cost_model_lean.py` after recursive planner
   changes. It checks the planner against itself -- the array width scan, the
-  dense and sparse planners, the reference candidates and the catalogue -- and
-  published plan over the unbounded catalogue. Takes a few minutes.
+  dense and sparse planners, the reference candidates and the catalogue.
+  Takes a few minutes.
 - CI runs `scripts/verifier.py` automatically for submission PRs.
 - For local verification while changing the verifier or template, run
   `python3 scripts/verifier.py --out-dir artifacts`.
