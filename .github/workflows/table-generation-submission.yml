@@ -140,6 +140,19 @@ jobs:
             echo "no build cache restored"
           fi
 
+      # Needs Lean and the restored build cache, so it sits after both, and
+      # still ahead of the verifier's own `lake build`.
+      #
+      # The script and the gate come from the TRUSTED verifier checkout; only
+      # the working directory is the submission, because that is where the
+      # caches were moved and so the only tree `lake env` can resolve in. The
+      # preflight step above has already rejected any diff outside
+      # `TableGeneration/Submission/Policy{,/**}`, so the `lakefile.lean` and
+      # `lean-toolchain` that `lake env` reads here are the base branch's.
+      - name: Check the submission syntax gate
+        working-directory: submission
+        run: python3 ../verifier/scripts/test_submission_syntax_gate.py
+
       - name: Run verifier
         working-directory: submission
         env:

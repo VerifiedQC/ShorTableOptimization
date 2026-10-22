@@ -176,7 +176,12 @@ BANNED_PATTERNS = {
         r"|macro|elab|syntax|notation|infixl|infixr|infix|prefix|postfix)\b",
         re.MULTILINE,
     ),
-    "external implementation hook": re.compile(r"\b(?:extern|implemented_by)\b"),
+    # `csimp` is here because it rewrites the compiled implementation that the
+    # `#eval`-driven metrics path actually runs, which is the one place where
+    # the number reported and the theorem proved could come apart.
+    "external implementation hook": re.compile(
+        r"\b(?:extern|implemented_by|csimp)\b"
+    ),
     # Both the token form and the `decide +native` / `decide (config := ...)`
     # elaborator option that reaches the same compiled-evaluation path.
     "non-kernel computation": re.compile(
@@ -899,6 +904,49 @@ def write_text(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+SYNTAX_GATE = Path(__file__).resolve().parent / "ci" / "submission_syntax_gate.lean"
+
+
+def verify_submission_syntax(repo: Path) -> dict[str, str]:
+    """Judge the submitted files by their parse tree rather than their text.
+
+    `verify_no_banned_tokens` is a regex blocklist over text whose comments this
+    file strips itself, so it has to re-implement Lean's lexer and can
+    desynchronise from it; five such bypasses were found and patched by hand.
+    This gate hands the same files to Lean's own parser and allowlists what
+    comes back: imports, command kinds, and `set_option` names and values at
+    command, term and tactic level.
+
+    It does not subsume the blocklist, and must not be read as doing so.
+    `sorry`, `axiom`, `unsafe`, `extern`, `implemented_by`, `csimp` and
+    `native_decide` are all a declaration or an attribute on one, so the gate
+    admits every one of them; the blocklist is still what refuses them. The two
+    layers are orthogonal and both are required.
+
+    Only the editable, installable surface is checked -- `Policy.lean` and
+    `Policy/**`. `Defs.lean` and `Correctness.lean` are protected and
+    `verify_changed_files` has already rejected any diff to them, so they are
+    byte-identical to the base branch and are not a submission's to choose.
+    (They also import `BestKnown` and each other, which the gate's import
+    allowlist refuses for an installable file.)
+
+    It runs BEFORE `verify_build`, and `verify()` skips the build when it fails,
+    so a file holding compile-time execution is never elaborated on the runner.
+    """
+    # Relative, and `run_cmd` runs in `repo`: the gate echoes the path back in
+    # every violation and a submitter should not be reading runner paths.
+    files = sorted(str(p.relative_to(repo)) for p in _installed_submission_files(repo))
+    if not files:
+        return check_result("submission syntax gate", False, "No submitted Lean files found.")
+    result = run_cmd(["lake", "env", "lean", "--run", str(SYNTAX_GATE), *files], repo, 600)
+    output = str(result["output"]).strip()
+    return check_result(
+        "submission syntax gate",
+        result["returncode"] == 0,
+        output if output else "Submitted files parse to permitted commands and options.",
+    )
+
+
 def verify_build(repo: Path, out_dir: Path) -> dict[str, str]:
     build = run_cmd(["lake", "build", *TARGET_MODULES], repo)
     write_text(out_dir / "table-generation-build.log", build["output"])
@@ -1479,33 +1527,46 @@ def verify(repo: Path, out_dir: Path, preflight_only: bool = False) -> dict[str,
             "metrics": metrics,
         }
 
-    build_check = verify_build(repo, out_dir)
-    checks.append(build_check)
+    # Before the build, so a file that parses to something impermissible is
+    # refused before Lean elaborates any of it. The build is skipped when it
+    # fails: recording "this file contains `initialize`" and then running
+    # `lake build` over that same file would run the thing just objected to.
+    syntax_check = verify_submission_syntax(repo)
+    checks.append(syntax_check)
 
-    if build_check["status"] == "success":
-        axiom_check = verify_axiom_dependencies(repo, out_dir)
-        checks.append(axiom_check)
-        proof_checks_ok = all(
-            check["status"] == "success"
-            for check in checks
-            if check["status"] != "skipped"
-        )
-        if not proof_checks_ok:
-            checks.append(
-                skipped_result("target metrics", "Skipped because proof checks failed.")
-            )
-        elif target_error:
-            checks.append(check_result("target metrics", False, target_error))
-        elif weights_error:
-            checks.append(check_result("target metrics", False, weights_error))
-        elif targets is None:
-            checks.append(skipped_result("target metrics", "No scoring target is configured."))
-        else:
-            metrics, metric_check = collect_target_metrics(repo, out_dir, targets)
-            checks.append(metric_check)
+    if syntax_check["status"] != "success":
+        gate_failed = "Skipped because the submission syntax gate failed."
+        checks.append(skipped_result("lean build", gate_failed))
+        checks.append(skipped_result("axiom dependencies", gate_failed))
+        checks.append(skipped_result("target metrics", gate_failed))
     else:
-        checks.append(skipped_result("axiom dependencies", "Skipped because Lean build failed."))
-        checks.append(skipped_result("target metrics", "Skipped because Lean build failed."))
+        build_check = verify_build(repo, out_dir)
+        checks.append(build_check)
+
+        if build_check["status"] == "success":
+            axiom_check = verify_axiom_dependencies(repo, out_dir)
+            checks.append(axiom_check)
+            proof_checks_ok = all(
+                check["status"] == "success"
+                for check in checks
+                if check["status"] != "skipped"
+            )
+            if not proof_checks_ok:
+                checks.append(
+                    skipped_result("target metrics", "Skipped because proof checks failed.")
+                )
+            elif target_error:
+                checks.append(check_result("target metrics", False, target_error))
+            elif weights_error:
+                checks.append(check_result("target metrics", False, weights_error))
+            elif targets is None:
+                checks.append(skipped_result("target metrics", "No scoring target is configured."))
+            else:
+                metrics, metric_check = collect_target_metrics(repo, out_dir, targets)
+                checks.append(metric_check)
+        else:
+            checks.append(skipped_result("axiom dependencies", "Skipped because Lean build failed."))
+            checks.append(skipped_result("target metrics", "Skipped because Lean build failed."))
 
     required_checks = [check for check in checks if check["status"] != "skipped"]
     success = all(check["status"] == "success" for check in required_checks)
