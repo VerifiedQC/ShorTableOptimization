@@ -2,8 +2,6 @@ import TableGeneration.Language
 
 namespace TableGeneration
 
-open Operations
-
 def arithmeticOperationCount {k : Nat} : Prog k -> Nat
   | [] => 0
   | op :: ops =>

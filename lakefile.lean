@@ -25,9 +25,20 @@ The companion development supplies the gate cost model. It was previously
 carved out into `TableGeneration/RecursiveCost/ForShor/` and kept in step by a
 hand-run drift check; sourcing it here removes the copy and the drift.
 
-The package is named `Fast_multiplication` and its library is
-`FastMultiplication`; neither is spelled "ForShor", which is only the repository
-name. The same confinement applies as to Mathlib: nothing outside
+The library is `FastMultiplication`. The PACKAGE was once
+`Fast_multiplication`, which is the name `require` below still uses and the name
+`lake-manifest.json` records -- but at the pinned revision `efe9bc0` the
+companion declares `package «ForShor»`. Resolution succeeds only because lake
+takes the name from the manifest and the existing `.lake/packages` directory,
+not from the remote lakefile.
+
+So `require «Fast_multiplication»` names a package that no longer exists
+upstream, and `inputRev` is `main`. A `lake update` would re-read the remote
+lakefile and is expected to fail on the mismatch; that is untested here, because
+testing it means discarding the build cache. Rename to `«ForShor»` when the
+cache cost is acceptable (decision D3).
+
+The same confinement applies as to Mathlib: nothing outside
 `TableGeneration/RecursiveCost/**` may import it.
 -/
 require «Fast_multiplication» from git
