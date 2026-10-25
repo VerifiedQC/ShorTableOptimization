@@ -65,6 +65,11 @@ jobs:
           python3 scripts/test_publish_promotion.py
           python3 scripts/test_archive_completeness.py
           python3 scripts/test_promote_audit.py
+          # Guards the Report job's trusted pull-request resolution. It lives
+          # here because `table-generation-report.yml` runs only on
+          # `workflow_run` and `workflow_dispatch`, so a pull request editing
+          # that workflow or `table_generation_report.js` ran nothing at all.
+          node scripts/test_report_trust.js
 
       - name: Install Lean
         working-directory: source
@@ -308,7 +313,7 @@ jobs:
           # Includes the promotion and leaderboard tooling, whose own tests are
           # exactly what a change to them needs to run. A docs-only pull request
           # matches nothing here and so skips the 60-minute job.
-          if echo "$changed" | grep -qE '^(TableGeneration/|TableGeneration\.lean|leaderboard/|scripts/promote\.py|scripts/leaderboard\.py|scripts/verifier\.py|scripts/ci/|scripts/test_|lean-toolchain|lakefile\.lean|lake-manifest\.json|\.github/workflows/table-generation-promotion\.yml)'; then
+          if echo "$changed" | grep -qE '^(TableGeneration/|TableGeneration\.lean|leaderboard/|scripts/promote\.py|scripts/leaderboard\.py|scripts/verifier\.py|scripts/ci/|scripts/test_|lean-toolchain|lakefile\.lean|lake-manifest\.json|\.github/workflows/table-generation-(promotion|report)\.yml)'; then
             echo "promotion=true" >> "$GITHUB_OUTPUT"
           else
             echo "promotion=false" >> "$GITHUB_OUTPUT"
