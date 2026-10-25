@@ -7,8 +7,9 @@ import TableGeneration.Language
 (`progConsumesPts? ... = true`) where the companion states the same obligations
 with Prop-valued ones. That is deliberate: the Bool form is what lets a
 submitter discharge the contract by `decide` -- kernel-checked, with no Mathlib
-and no `native_decide` -- which is why `#print axioms` on the two submission
-theorems reports `propext` alone.
+and no `native_decide` -- which is what makes the propext-only audit achievable.
+Achievable, not guaranteed: it also needs every `Decidable`/`BEq` instance those
+deciders resolve through to be axiom-free, and on v4.36.0-rc1 `BEq Int` was not.
 
 It also bundles into one structure what the companion's `ShorLoweringSetup`
 asks for as two obligations:
