@@ -616,16 +616,22 @@ def get_changed_files(repo: Path) -> tuple[bool, list[str], str]:
         print(f"verifier: WARNING: {details}", file=sys.stderr)
         return True, [], details
 
+    # NOT `--depth=1`. The diff below is three-dot, so it needs a merge base,
+    # and a shallow fetch grafts the base commit with no parents -- severing
+    # ancestry that the submitter's own checkout (`fetch-depth: 0`) already
+    # has. Every fork that branched before the current `submission/template`
+    # tip lands here, which `sync-submission-template.yml` makes common, and
+    # the submitter is then rejected with a bare `fatal: ...: no merge base`
+    # instead of the written diagnostic.
     has_base = run_cmd(["git", "cat-file", "-e", f"{base}^{{commit}}"], repo, 60)
     if has_base["returncode"] != 0:
-        fetch_origin = run_cmd(["git", "fetch", "--no-tags", "--depth=1", "origin", base], repo, 300)
+        fetch_origin = run_cmd(["git", "fetch", "--no-tags", "origin", base], repo, 300)
         if fetch_origin["returncode"] != 0 and base_repo:
             run_cmd(
                 [
                     "git",
                     "fetch",
                     "--no-tags",
-                    "--depth=1",
                     f"https://github.com/{base_repo}.git",
                     base,
                 ],
