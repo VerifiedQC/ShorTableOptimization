@@ -176,10 +176,14 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          regenerated=$(git diff --name-only)
-          [ -n "$regenerated" ] || exit 0
+          # Resolved first, and unconditionally, so that a run where the
+          # regeneration happens to be clean still proves these refs exist in
+          # this checkout. Otherwise the ref math is only ever exercised on the
+          # run that is already failing, which is a poor time to discover it.
           # Same three-dot merge-base comparison the `changes` job uses.
           touched=$(git diff --name-only "$BASE...$HEAD")
+          regenerated=$(git diff --name-only)
+          [ -n "$regenerated" ] || { echo "Generator output is clean."; exit 0; }
           clash=$(comm -12 <(echo "$regenerated" | sort -u) <(echo "$touched" | sort -u))
           if [ -n "$clash" ]; then
             echo "::error::Hand-edited generated file(s): $(echo $clash). scripts/promote.py writes these -- change the generator, not its output, or the next promotion reverts you."
