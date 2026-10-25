@@ -3,7 +3,7 @@ import TableGeneration.RecursiveCost.AllocationAgreement
 
 namespace TableGeneration.RecursiveCost.TestOracle
 
-open Operations
+open TableGeneration.Operations
 
 /-- Small independent policy, cheap enough to plan over at every width the
 checks use. Independent of the archive, so a promotion cannot move it. -/

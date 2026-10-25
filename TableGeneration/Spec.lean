@@ -45,11 +45,11 @@ def natPowerOfTwo? (n : Nat) : Bool :=
   natPowerOfTwoFuel n n
 
 def signedPowerOfTwo? (z : Int) : Bool :=
-  if z == 0 then false else natPowerOfTwo? (Int.natAbs z)
+  if z = 0 then false else natPowerOfTwo? (Int.natAbs z)
 
 def validPoint? : Point -> Bool
-  | .int z => z == 0 || signedPowerOfTwo? z
-  | .frac m => m == 0 || signedPowerOfTwo? m
+  | .int z => decide (z = 0) || signedPowerOfTwo? z
+  | .frac m => decide (m = 0) || signedPowerOfTwo? m
 
 def normalizePoint : Point -> Point
   | .frac m =>
