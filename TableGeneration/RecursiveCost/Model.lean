@@ -3,7 +3,7 @@ import TableGeneration.RecursiveCost.CompanionCost
 
 namespace TableGeneration.RecursiveCost
 
-open Operations
+open TableGeneration.Operations
 
 /-!
 # Recursive PhaseProduct cost model

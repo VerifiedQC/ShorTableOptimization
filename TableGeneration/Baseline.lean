@@ -26,7 +26,7 @@ def addConstFrom {k : Nat} (dst src : Fin k) (c : Int) : Prog k :=
     addConstAuxFuel dst src negSrc (n + 1) n 0
 
 def nonzeroFins {k : Nat} (hk : 0 < k) : List (Fin k) :=
-  (List.finRange k).filter (fun j => decide (j != finZero hk))
+  (List.finRange k).filter (fun j => decide (j.val != (finZero hk).val))
 
 def computeLocalAux {k : Nat} (hk : 0 < k) (z : Int) :
     List (Fin k) -> Prog k
@@ -38,7 +38,7 @@ def computeLocal {k : Nat} (hk : 0 < k) (z : Int) : Prog k :=
   computeLocalAux hk z (nonzeroFins hk)
 
 def nonlastFins {k : Nat} (hk : 0 < k) : List (Fin k) :=
-  (List.finRange k).filter (fun j => decide (j != finLast hk))
+  (List.finRange k).filter (fun j => decide (j.val != (finLast hk).val))
 
 def fracCoeff {k : Nat} (c : Int) (j : Fin k) : Int :=
   c ^ (k - 1 - j.val)

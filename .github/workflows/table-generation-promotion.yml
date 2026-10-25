@@ -122,11 +122,32 @@ jobs:
             echo "no build cache restored"
           fi
 
-      # The submission axiom audit is propext-only because nothing on the
-      # submission path imports Mathlib. Nothing in Lean enforces that.
+      # Keeping Mathlib off the submission path is necessary for the
+      # propext-only audit, but it is NOT sufficient: core Lean can route a
+      # `BEq`/`Decidable` instance through a classical definition on its own.
+      # Nothing in Lean enforces either half, so both are checked.
       - name: Check Mathlib confinement
         working-directory: source
         run: python3 scripts/check_mathlib_confinement.py
+
+      # The audit the submission path already runs, run here as well, on the
+      # same function. A submission is judged by `#print axioms` reporting
+      # `propext` alone; what that reports is decided by the toolchain and the
+      # dependency pins, which a submitter does not control and does not touch.
+      # So the audit has to run when THOSE move, not only when a submission
+      # arrives -- otherwise the first symptom is every submission being
+      # rejected for something the submitter did not do.
+      #
+      # Real instance: Lean v4.36.0-rc1 resolves `BEq Int` through
+      # `Std.PreorderPackage.toBEq`, which is classical, so `z == 0` in
+      # `Spec.lean` pulled `Classical.choice` into the contract. The build was
+      # green throughout. This step is what notices.
+      - name: Audit theorem axioms
+        working-directory: source
+        run: |
+          set -euo pipefail
+          lake build TableGeneration.Submission.Correctness
+          python3 scripts/verifier.py --axioms-only --out-dir ../artifacts
 
       - name: Construct and verify best-known generator
         working-directory: source

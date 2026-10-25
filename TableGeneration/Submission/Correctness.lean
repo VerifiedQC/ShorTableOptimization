@@ -21,7 +21,8 @@ theorem generate_ProgConsumesPtsSafe
     ValidPointOrder (generatedPoints mode k) (generatePointsInOrder mode k hk) /\
       ProgConsumesPtsSafe (positive_of_ge_two hk) State.start_state
         (generate mode k hk) (generatePointsInOrder mode k hk) := by
-  simpa [generatePointsInOrder, generate, _hhandles] using
+  simpa [generatedPoints, generatePointsInOrder, generate,
+    submissionGeneratePointsInOrder, submissionGenerate, _hhandles] using
     Submission.Policy.implementation.generate_safe mode k hk _hhandles
 
 end TableGeneration

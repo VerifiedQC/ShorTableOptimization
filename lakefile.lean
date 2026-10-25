@@ -4,42 +4,30 @@ open Lake DSL
 package ShorTableOptimization where
 
 /--
-Mathlib is pinned to the revision the companion development uses, so that the
-companion's own definitions elaborate here unchanged -- `Function.update` in the
-width scan and `Finset.univ.sup` in `commonNeededWidth` have no Lean-core
-equivalent.
+Pinned to the revision the companion uses, so the companion's own definitions
+elaborate here unchanged -- `Function.update` in the width scan and
+`Finset.univ.sup` in `commonNeededWidth` have no Lean-core equivalent. The
+companion pins Mathlib too, so the two pins move together; `update-forshor`
+fails if they drift apart.
 
-This `require` is listed first so the root pin governs: the companion's own
-Mathlib requirement carries no revision, and Lake resolves a package name once.
+Listed first because Lake resolves a package name once, so the root pin wins.
 
-The import is deliberately confined to `TableGeneration/RecursiveCost/**`, and
-CI enforces that. Everything the submission contract depends on stays
-Mathlib-free, which is what keeps `#print axioms` on the two submission theorems
-reporting `propext` alone.
+CI confines the import to `TableGeneration/RecursiveCost/**`. That is necessary
+for the propext-only axiom audit but not sufficient: core Lean can route an
+instance through a classical definition with no Mathlib in sight (v4.36.0-rc1
+did exactly that to `BEq Int`). The audit itself is the check.
 -/
 require mathlib from git
-  "https://github.com/leanprover-community/mathlib4.git" @ "fadcf92bfcfe7575bbdf04c6f83ab3ada53e3d42"
+  "https://github.com/leanprover-community/mathlib4.git" @ "4dc43842a11f257ffba2a611c943a133a65cb4b2"
 
 /--
-The companion development supplies the gate cost model. It was previously
-carved out into `TableGeneration/RecursiveCost/ForShor/` and kept in step by a
-hand-run drift check; sourcing it here removes the copy and the drift.
+Supplies the gate cost model, confined to `TableGeneration/RecursiveCost/**`
+like Mathlib.
 
-The library is `FastMultiplication`. The PACKAGE was once
-`Fast_multiplication`, which is the name `require` below still uses and the name
-`lake-manifest.json` records -- but at the pinned revision `efe9bc0` the
-companion declares `package «ForShor»`. Resolution succeeds only because lake
-takes the name from the manifest and the existing `.lake/packages` directory,
-not from the remote lakefile.
-
-So `require «Fast_multiplication»` names a package that no longer exists
-upstream, and `inputRev` is `main`. A `lake update` would re-read the remote
-lakefile and is expected to fail on the mismatch; that is untested here, because
-testing it means discarding the build cache. Rename to `«ForShor»` when the
-cache cost is acceptable (decision D3).
-
-The same confinement applies as to Mathlib: nothing outside
-`TableGeneration/RecursiveCost/**` may import it.
+The library is `FastMultiplication`; the PACKAGE is named `Fast_multiplication`
+here and in `lake-manifest.json`, but upstream now declares `package «ForShor»`.
+Resolution works anyway because lake takes the name from the manifest, not from
+the remote lakefile. Renaming is cosmetic and costs the build cache (D3).
 -/
 require «Fast_multiplication» from git
   "https://github.com/VerifiedQC/ForShor.git" @ "main"

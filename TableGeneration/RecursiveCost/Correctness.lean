@@ -16,7 +16,7 @@ import TableGeneration.RecursiveCost.ChampionLowering
 
 namespace TableGeneration.RecursiveCost
 
-open Operations
+open TableGeneration.Operations
 
 /-!
 # Recursive-cost model invariants
