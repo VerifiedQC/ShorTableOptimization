@@ -187,7 +187,14 @@ jobs:
           # run that is already failing, which is a poor time to discover it.
           # Same three-dot merge-base comparison the `changes` job uses.
           touched=$(git diff --name-only "$BASE...$HEAD")
-          regenerated=$(git diff --name-only)
+          # Staged first because `git diff` alone ignores untracked files: a
+          # pull request that DELETES a generated file leaves the regenerated
+          # copy untracked, and the gate saw nothing. `leaderboard/best-known.md`
+          # is the reachable case -- no Lean imports it, so deleting it keeps
+          # the build and the audit green. Mutating the index is harmless; no
+          # later step in this job reads it.
+          git add -A
+          regenerated=$(git diff --cached --name-only)
           [ -n "$regenerated" ] || { echo "Generator output is clean."; exit 0; }
           clash=$(comm -12 <(echo "$regenerated" | sort -u) <(echo "$touched" | sort -u))
           if [ -n "$clash" ]; then

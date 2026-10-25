@@ -92,8 +92,8 @@ The dependency is confined to `TableGeneration/RecursiveCost/**`, enforced by
 `scripts/check_mathlib_confinement.py`. That is necessary for the propext-only
 audit but not sufficient -- core Lean reached `Classical.choice` through
 `BEq Int` on v4.36.0-rc1 with no Mathlib involved. The audit itself is the
-check, and `table-generation-promotion.yml` runs it on every pull request and
-every push to `main`.
+check, and `table-generation-promotion.yml` runs it whenever a pull request or
+a push touches Lean, the toolchain or the dependency pins.
 
 ### The dependency pin, and what moves it
 
