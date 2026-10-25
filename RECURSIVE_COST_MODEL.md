@@ -89,21 +89,26 @@ Three things the companion does not supply, all under
   **equal** to it.
 
 The dependency is confined to `TableGeneration/RecursiveCost/**`, enforced by
-`scripts/check_mathlib_confinement.py`, which is what keeps the submission axiom
-audit reporting `propext` alone.
+`scripts/check_mathlib_confinement.py`. That is necessary for the propext-only
+audit but not sufficient -- core Lean reached `Classical.choice` through
+`BEq Int` on v4.36.0-rc1 with no Mathlib involved. The audit itself is the
+check, and `table-generation-promotion.yml` runs it on every pull request and
+every push to `main`.
 
 ### The dependency pin, and what moves it
 
 ForShor is a Lake dependency, declared in `lakefile.lean` as the package
 `Fast_multiplication` and tracking its `main` branch. Mathlib is required first
-so that this repository's pin governs: ForShor's own Mathlib requirement carries
-no revision, and Lake resolves a package name once.
+so that this repository's pin governs: Lake resolves a package name once. ForShor
+pins Mathlib too, at the revision this repository names, so the two pins move
+together.
 
 Tracking a branch does not make builds float. `lake-manifest.json` records a
 resolved commit and is committed, so CI and a fresh clone build that exact
-revision. One thing advances it: `.github/workflows/update-forshor.yml`, which
-runs `lake update Fast_multiplication` on a daily schedule. It pushes to `main`
-without review, which is safe only because it refuses to push unless the
+revision. Two things advance it. The first is
+`.github/workflows/update-forshor.yml`, which runs `lake update
+Fast_multiplication` on a daily schedule; the second is a maintainer in a
+reviewed PR, as below. The cron pushes to `main` without review, which is safe only because it refuses to push unless the
 companion's cost model is byte-identical to
 `scripts/tests/companion-cost-model.tsv` -- the primitive gate costs, the
 allocation costs and the width transitions, which is everything the planner reads

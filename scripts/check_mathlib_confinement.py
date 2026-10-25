@@ -4,9 +4,11 @@
 The submission contract's guarantee is that `#print axioms` on
 `TableGeneration.generatedPoints_valid` and
 `TableGeneration.generate_ProgConsumesPtsSafe` reports `propext` and nothing
-else. That holds today for a structural reason: those theorems' proof terms
-never reach `TableGeneration/RecursiveCost/**`, which is the only part of the
-library that imports Mathlib.
+else. Confinement is half of what that needs: those theorems' proof terms never
+reach `TableGeneration/RecursiveCost/**`, the only part of the library that
+imports Mathlib. The other half is that no instance they resolve through is
+itself classical, which confinement cannot see -- v4.36.0-rc1 broke it from
+core, with no Mathlib involved.
 
 Nothing in Lean enforces that boundary. The moment a Mathlib import lands in
 `Basic.lean`, `Language.lean`, `Spec.lean`, `Policy.lean`, `BestKnown.lean`,

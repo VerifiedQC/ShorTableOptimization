@@ -153,6 +153,41 @@ jobs:
         working-directory: source
         run: python3 -m scripts.promote --results-root ../published-results
 
+      # `scripts.promote` above has just rewritten its own outputs in place, so
+      # any of them still showing as modified was committed differently from
+      # what the generator produces -- i.e. hand-edited. Nothing else caught
+      # that: the job verifies the REGENERATED tree, so the pull request goes
+      # green and the first sign of trouble is the unattended push to `main`
+      # reverting the edit. That is f10c95b, which reverted part of #78.
+      #
+      # Restricted to paths the pull request itself touched. A plain dirty-tree
+      # check also fires when `submission-results` holds an accepted policy
+      # `main` has not promoted yet, which is routine and not this error; no
+      # re-run would clear it. Skipped on push, where a difference is the point.
+      #
+      # Residual: a pull request that edits the GENERATOR, and so legitimately
+      # carries regenerated outputs, still collides if an acceptance is pending
+      # at the same time. Rare, and the printed diff shows which it is.
+      - name: Generated files match their generator
+        if: github.event_name == 'pull_request'
+        working-directory: source
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          regenerated=$(git diff --name-only)
+          [ -n "$regenerated" ] || exit 0
+          # Same three-dot merge-base comparison the `changes` job uses.
+          touched=$(git diff --name-only "$BASE...$HEAD")
+          clash=$(comm -12 <(echo "$regenerated" | sort -u) <(echo "$touched" | sort -u))
+          if [ -n "$clash" ]; then
+            echo "::error::Hand-edited generated file(s): $(echo $clash). scripts/promote.py writes these -- change the generator, not its output, or the next promotion reverts you."
+            git diff -- $clash
+            exit 1
+          fi
+          echo "Generated files this pull request touches match the generator."
+
       # The Lean cost-model checks are deliberately NOT here. They guard the
       # recursive gate-count planner, which is a reported measure: nothing on
       # the submission path imports `RecursiveCost`, and the leaderboard ranks
