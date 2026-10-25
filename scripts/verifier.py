@@ -1627,10 +1627,32 @@ def main() -> int:
         action="store_true",
         help="Run structural submission checks without installing or invoking Lean.",
     )
+    parser.add_argument(
+        "--axioms-only",
+        action="store_true",
+        help=(
+            "Audit the two submission theorems' axioms against a built checkout "
+            "and exit. Needs no submission, so CI can run it when the toolchain "
+            "or the dependency pins move."
+        ),
+    )
     args = parser.parse_args()
 
     repo = Path(args.repo).resolve()
     out_dir = (repo / args.out_dir).resolve()
+
+    # The audit is the one check that fails OPEN: if a toolchain change makes a
+    # contract definition depend on a classical axiom, nothing fails to build
+    # and no output looks wrong -- every later submission is simply rejected,
+    # pointing at the submitter. Observed on Lean v4.36.0-rc1, where `BEq Int`
+    # began resolving through `Std.PreorderPackage.toBEq`, which is classical.
+    # So it also runs outside the submission path, on the same code, via this
+    # flag. `verify()` is not reused here: its preflight is about a submission
+    # diff, and there is no submission.
+    if args.axioms_only:
+        result = verify_axiom_dependencies(repo, out_dir)
+        print(f"{result['status']}: {result['details']}")
+        return 0 if result["status"] == "success" else 1
     # The preflight runs no subprocesses, so it needs no budget.
     if not args.preflight_only:
         start_deadline()
