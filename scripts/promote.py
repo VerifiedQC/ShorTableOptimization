@@ -15,6 +15,7 @@ import zipfile
 
 from scripts.leaderboard import read_json, validate_config, weighted_cost
 from scripts.verifier import (
+    SYNTAX_GATE,
     ALLOWED_AXIOMS,
     BANNED_PATTERNS,
     parse_axiom_names,
@@ -573,12 +574,20 @@ def evaluate_targets(
 
 
 def scan_accepted_sources(repo: Path) -> None:
-    """Reject banned tokens in the installed policy sources. Runs BEFORE the
-    Lean build, so a submission that a scanner weakness let reach the archive
-    cannot execute compile-time code during `lake build` -- the job that holds a
-    write token to `main`. The per-submission preflight already scanned these
-    files, but this is the archive as a whole and the last chance to catch a
-    gap before the trusted build."""
+    """Re-check the installed policy sources before the Lean build.
+
+    Runs BEFORE `lake build`, so a submission that a scanner weakness let reach
+    the archive cannot execute compile-time code while the archive is
+    elaborated. The per-submission preflight already checked these files one at
+    a time; this is the archive as a whole.
+
+    Both layers the submission path uses, not just one. The regex blocklist has
+    to re-implement Lean's lexer and has desynchronised from it before, and the
+    parse-tree gate is what refuses a command by kind -- including
+    `set_option debug.skipKernelTC`, which the blocklist does not match and the
+    axiom audit cannot see, because it reports the axioms of a term the kernel
+    never checked. Running only the blocklist here left the archive guarded
+    more weakly than the submission that entered it."""
     failures = []
     for path in sorted((repo / ACCEPTED_ROOT).glob("**/*.lean")):
         text = strip_lean_comments(path.read_text(encoding="utf-8"))
@@ -587,6 +596,19 @@ def scan_accepted_sources(repo: Path) -> None:
                 failures.append(f"{path.relative_to(repo)}: banned {label}")
     if failures:
         raise ValueError("; ".join(failures))
+
+    installed = sorted(
+        str(p.relative_to(repo)) for p in (repo / ACCEPTED_ROOT).glob("**/*.lean")
+    )
+    if installed:
+        gate = run_cmd(
+            ["lake", "env", "lean", "--run", str(SYNTAX_GATE), *installed], repo, 900
+        )
+        if gate["returncode"] != 0:
+            raise ValueError(
+                "archive fails the submission syntax gate:\n"
+                + str(gate["output"]).strip()
+            )
 
 
 def audit_source(records: list[dict[str, Any]]) -> list[str]:
