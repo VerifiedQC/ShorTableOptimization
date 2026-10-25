@@ -58,6 +58,40 @@ jobs:
       - name: Install Lean
         run: ./scripts/ci/install_lean.sh
 
+      # The companion pins Mathlib and `lean-toolchain` together, on purpose,
+      # and our root pin names the same Mathlib revision it does. When it moves
+      # the toolchain, `lake update` adopts the new one into this tree, our
+      # pinned Mathlib no longer matches it, and Mathlib's post-update hook
+      # fails the step with a message about a cache rather than about the
+      # companion. Observed 2026-10-25, run 40169053651, when the companion
+      # went v4.28.0 -> v4.36.0-rc1 in 52b331d.
+      #
+      # The Lean version is the environment every submission is judged in, so
+      # moving it is a reviewed PR -- never an unattended push from this job.
+      # Check before `lake update` mutates anything, and name the real cause.
+      - name: Companion build environment unchanged
+        run: |
+          set -euo pipefail
+          raw=https://raw.githubusercontent.com/VerifiedQC/ForShor/main
+          theirs_lean=$(curl -fsSL "$raw/lean-toolchain" | tr -d '[:space:]')
+          ours_lean=$(tr -d '[:space:]' < lean-toolchain)
+          theirs_mathlib=$(curl -fsSL "$raw/lake-manifest.json" \
+            | jq -r '.packages[] | select(.name=="mathlib") | .rev')
+          ours_mathlib=$(jq -r '.packages[] | select(.name=="mathlib") | .rev' lake-manifest.json)
+
+          # Advisory only. Our root pin governs the build, so a companion-only
+          # Mathlib move either builds here or is caught by `lake build` below.
+          # Failing on it would just add a second way for this cron to go red.
+          if [ "$theirs_mathlib" != "$ours_mathlib" ]; then
+            echo "::warning::Companion moved Mathlib $ours_mathlib -> $theirs_mathlib. Our root pin still governs; the build below decides whether that matters."
+          fi
+
+          if [ "$theirs_lean" != "$ours_lean" ]; then
+            echo "::error::Companion moved Lean $ours_lean -> $theirs_lean. Not updating. Upgrading this repo's toolchain is a reviewed PR: it has to carry a matching Mathlib revision (the companion is on $theirs_mathlib), and scripts/ci/submission_syntax_gate.lean reads Lean frontend internals that move between versions."
+            exit 1
+          fi
+          echo "Lean $ours_lean and Mathlib $ours_mathlib match the companion."
+
       - name: Resolve the companion's current main
         id: update
         run: |
