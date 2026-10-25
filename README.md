@@ -53,8 +53,9 @@ the working tree.
 Every one of these runs in CI. Submissions are gated by the verifier plus the
 hardening, preflight, archive and parse-tree-gate checks; promotion by the
 promotion, confinement and archive checks together with the axiom audit, which
-runs on every pull request and every push to `main` so that a toolchain or
-dependency change cannot loosen it unnoticed; and the Lean cost-model checks
+runs whenever a pull request or a push touches Lean, the toolchain or the
+dependency pins -- everything that can move the axioms -- so such a change
+cannot loosen the audit unnoticed; and the Lean cost-model checks
 run on the ForShor dependency bump (`update-forshor.yml`).
 
 The template passes preflight. The full verifier rejects it, because it handles
@@ -127,6 +128,12 @@ audit cannot see.
 
 The accepted axiom set is `propext` alone, and a submitted file may import only
 the contract modules and other accepted policies.
+
+One trap worth knowing before you hit it: `==` and `!=` on `Int` or `Fin`
+resolve to a classical `BEq` instance on the current toolchain, so they pull
+`Classical.choice` into the audit even though you declared no axiom and used no
+`native_decide`. Write `decide (a = b)` for `Int` and compare `.val` for `Fin`.
+`Nat` is unaffected.
 
 ## Opening a Pull Request
 

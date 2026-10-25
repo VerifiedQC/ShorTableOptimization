@@ -7,8 +7,10 @@ package ShorTableOptimization where
 Pinned to the revision the companion uses, so the companion's own definitions
 elaborate here unchanged -- `Function.update` in the width scan and
 `Finset.univ.sup` in `commonNeededWidth` have no Lean-core equivalent. The
-companion pins Mathlib too, so the two pins move together; `update-forshor`
-fails if they drift apart.
+companion pins Mathlib too, so the two pins move together. `update-forshor`
+fails outright when the Lean toolchains differ, and warns when only the Mathlib
+revisions do -- our pin governs the build, so the build decides whether that
+matters.
 
 Listed first because Lake resolves a package name once, so the root pin wins.
 

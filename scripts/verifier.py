@@ -999,11 +999,21 @@ def verify_axiom_dependencies(repo: Path, out_dir: Path) -> dict[str, str]:
     found = parse_axiom_names(output)
     unexpected = sorted(found - ALLOWED_AXIOMS)
     if unexpected:
-        return check_result(
-            "axiom dependencies",
-            False,
-            "Unexpected theorem axioms: " + ", ".join(unexpected),
-        )
+        detail = "Unexpected theorem axioms: " + ", ".join(unexpected)
+        # A submitter who wrote no axiom and used no `native_decide` can still
+        # land here, because which `Decidable`/`BEq` instance an `==` resolves
+        # to is the toolchain's choice, not theirs. On v4.36.0-rc1 `BEq Int`
+        # and `BEq (Fin k)` go through `Std.PreorderPackage.toBEq`, which is
+        # classical. Naming the likely cause costs one line and saves a
+        # submitter staring at axioms they never wrote.
+        if "Classical.choice" in unexpected:
+            detail += (
+                ". If you did not declare an axiom, the usual cause is `==` or"
+                " `!=` on `Int` or `Fin`: those resolve to a classical `BEq`"
+                " instance. Use `decide (a = b)` for `Int`, and compare `.val`"
+                " for `Fin`; `Nat` is unaffected."
+            )
+        return check_result("axiom dependencies", False, detail)
 
     detail = (
         "No axioms were reported."
