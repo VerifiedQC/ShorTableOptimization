@@ -78,8 +78,14 @@ jobs:
             const reporting = require('./scripts/ci/table_generation_report.js');
             await reporting.persistBenchmarkResults({ github, context, core });
 
+      # Deliberately NOT `if: always()`. The download and persist steps are
+      # `continue-on-error`, so their failure still leaves this step's default
+      # `success()` true -- reporting a failed verification works either way.
+      # What `always()` additionally did was run this step when `Check report
+      # trust logic` had FAILED, i.e. when the resolution deciding which pull
+      # request to comment on and close is known broken. This step closes pull
+      # requests (`table_generation_report.js:450`).
       - name: Report PR result
-        if: always()
         uses: actions/github-script@v9
         env:
           RESULTS_JSON_URL: ${{ steps.persist.outputs.results_json_url }}
