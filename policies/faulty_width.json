@@ -1,0 +1,4 @@
+{"name": "width fault: accepted k=2 table (points 0,1,inf) whose declared ladder under-declares the working width at n=20 (11 < scanned 13)", "mode": "PhaseProduct",
+ "declared_ladder": [{"width": 20, "k": 2}, {"width": 11, "k": null}],
+ "bands": [{"threshold": 20, "k": 2, "point_order": ["0", "1", "inf"],
+   "operations": [["phaseProduct", 0], ["addScaled", 0, 1, 1, 0], ["phaseProduct", 0], ["addScaled", 0, 1, -1, 0], ["phaseProduct", 1]]}]}
