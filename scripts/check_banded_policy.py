@@ -12,7 +12,7 @@ Stages (each timed; the first failure stops the run and is recorded):
            ever compiled, so there is no lexical gate to run):
              .../Instances/Submitted.lean      bands + policy (defs of literals)
              .../Instances/SubmittedCert.lean  accepted / correct / chain_contracts
-  stage    copy-on-write clone of this project (cp -c, keeps .lake), unless
+  stage    copy-on-write clone of this project (keeps .lake), unless
            --in-place
   data     lake build ...Instances.Submitted
   report   lake env lean --run scripts/BandedPolicyReport.lean -- N
@@ -82,6 +82,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from policy_json_to_lean import PolicyError, ladder_of, render  # noqa: E402
+
+# Stage the project by cloning it. macOS `cp -c` needs APFS; GNU coreutils has
+# no `-c` at all and exits 1, which read as a rejected policy rather than a
+# broken harness. `--reflink=auto` clones where the filesystem supports it and
+# falls back to a full copy where it does not (ext4: 8.8 GB in ~18 s, against a
+# report run measured in tens of minutes).
+CLONE = ["cp", "-cR"] if sys.platform == "darwin" else ["cp", "-a", "--reflink=auto"]
 
 INST = Path("TableGeneration/RecursiveCost/BandedPolicy/Instances")
 DATA_MOD = "TableGeneration.RecursiveCost.BandedPolicy.Instances.Submitted"
@@ -236,7 +243,7 @@ def main(argv=None) -> int:
             if work.exists():
                 shutil.rmtree(work)
             t0 = time.monotonic()
-            subprocess.run(["cp", "-cR", str(ROOT), str(work)], check=True)
+            subprocess.run(CLONE + [str(ROOT), str(work)], check=True)
             rec["seconds"]["stage"] = round(time.monotonic() - t0, 2)
         rec["workdir"] = str(work)
         (work / INST).mkdir(parents=True, exist_ok=True)

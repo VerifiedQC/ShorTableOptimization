@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Run a command under a hard memory cap and a timeout (macOS).
+"""Run a command under a hard memory cap and a timeout.
 
     memcap.py --cap-gb 10 --timeout 1800 --log run.mem.json -- CMD ARGS...
 
-Polls every second the memory of the whole process tree as `top` reports it
-(`-stats mem`: resident + compressed, which RSS alone hides) and kills the
-tree when the sum exceeds the cap or the timeout passes. Writes peak memory,
-wall time and outcome to --log. Exit code: the command's, or 137 if killed.
+Polls every second the memory of the whole process tree and kills the tree when
+the sum exceeds the cap or the timeout passes. Writes peak memory, wall time
+and outcome to --log. Exit code: the command's, or 137 if killed.
+
+Counts resident plus the pages the process still owns that RSS alone hides:
+compressed memory on macOS (`top -stats mem`), swap on Linux (`VmSwap` in
+/proc). A reading of 0 for a live process means the cap is not being enforced,
+so the probe at startup fails loudly rather than running uncapped.
 """
 import argparse, json, os, re, signal, subprocess, sys, time
 
@@ -27,10 +31,22 @@ def tree(pid):
     return seen
 
 
-def mem(pid):
+def mem_darwin(pid):
     out = subprocess.run(["top", "-l", "1", "-pid", str(pid), "-stats", "mem"], capture_output=True, text=True).stdout
     vals = re.findall(r"^\s*([\d.]+)([BKMG])\+?-?\s*$", out, re.M)
     return int(float(vals[-1][0]) * UNITS[vals[-1][1]]) if vals else 0
+
+
+def mem_linux(pid):
+    try:
+        with open(f"/proc/{pid}/status") as f:
+            return sum(int(l.split()[1]) * 1024 for l in f
+                       if l.startswith(("VmRSS:", "VmSwap:")))
+    except (OSError, ValueError, IndexError):
+        return 0  # exited between listing the tree and reading it
+
+
+mem = mem_darwin if sys.platform == "darwin" else mem_linux
 
 
 def main():
@@ -42,6 +58,9 @@ def main():
     a = ap.parse_args()
     cmd = a.cmd[1:] if a.cmd and a.cmd[0] == "--" else a.cmd
     cap = int(a.cap_gb * (1 << 30))
+    if mem(os.getpid()) <= 0:
+        sys.exit(f"memcap: cannot read memory on {sys.platform} via {mem.__name__}; "
+                 f"refusing to run uncapped")
     t0 = time.monotonic()
     p = subprocess.Popen(cmd, start_new_session=True)
     peak, outcome = 0, None
