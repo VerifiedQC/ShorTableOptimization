@@ -6,3 +6,12 @@ lake-packages/
 artifacts/
 __pycache__/
 *.pyc
+
+# Written into the source tree by the policy harnesses for whichever policy is
+# being checked, and never part of a contribution. A run killed by a signal
+# leaves them behind, where `git add -A` will sweep them into a commit -- which
+# has happened once, and shipped a stale ladder that no longer elaborates.
+TableGeneration/RecursiveCost/PTP/Instances/PTPSubmitted.lean
+TableGeneration/RecursiveCost/PTP/Instances/PTPSubmittedCert.lean
+TableGeneration/RecursiveCost/BandedPolicy/Instances/Submitted.lean
+TableGeneration/RecursiveCost/BandedPolicy/Instances/SubmittedCert.lean

@@ -318,6 +318,13 @@ def main(argv=None):
     except subprocess.TimeoutExpired as e:
         rec["verdict"] = "rejected"
         rec["rejection"] = {"stage": "timeout", "reason": str(e)}
+    finally:
+        # ponytail: normal-exit tidy-up only; a signal still leaves these, which
+        # is why they are also gitignored. Staging into a workdir the way
+        # check_banded_policy.py does would remove the need for both.
+        if not a.save_lean:
+            for f in ("PTPSubmitted.lean", "PTPSubmittedCert.lean"):
+                (ROOT / INST / f).unlink(missing_ok=True)
     rec["finished"] = datetime.now(timezone.utc).isoformat()
     out = json.dumps(rec, indent=1, ensure_ascii=False)
     if a.out:
