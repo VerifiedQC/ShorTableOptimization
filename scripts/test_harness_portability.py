@@ -60,6 +60,32 @@ def test_memory_backend_returns_zero_for_a_dead_pid():
     assert memcap.mem(2 ** 22) == 0
 
 
+def test_linux_backend_uses_pss_not_rss():
+    """RSS summed over a tree double-counts shared pages.
+
+    `lake`, `lean` and the poller all map the same Mathlib oleans. Charging
+    those pages to each process in turn over-counted by 20% on a mid-size
+    replay (4310 MB against a true 3596 MB), which tripped an 8 GB cap on a run
+    holding about 7.4 GB and rejected a policy that should have been accepted.
+    """
+    if sys.platform == "darwin":
+        return
+    import os
+    pid = os.getpid()
+    rss = swap = 0
+    with open(f"/proc/{pid}/status") as f:
+        for l in f:
+            if l.startswith("VmRSS:"):
+                rss = int(l.split()[1]) * 1024
+            elif l.startswith("VmSwap:"):
+                swap = int(l.split()[1]) * 1024
+    got = memcap.mem(pid)
+    assert got <= rss + swap, f"reading {got} exceeds RSS+swap {rss + swap}"
+    # This process maps libc and libpython, so some pages are shared and PSS
+    # must come out strictly under RSS. Equality means RSS crept back in.
+    assert got < rss + swap, "reading equals RSS+swap; PSS is not being used"
+
+
 def test_the_cap_kills_a_process_that_exceeds_it():
     with tempfile.TemporaryDirectory() as d:
         hog, log = Path(d) / "hog.py", Path(d) / "log.json"

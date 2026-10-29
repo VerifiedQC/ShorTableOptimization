@@ -38,10 +38,38 @@ def mem_darwin(pid):
 
 
 def mem_linux(pid):
+    """Proportional set size plus swap, in bytes.
+
+    PSS, not RSS: these totals are summed over a process tree, and `lake`,
+    `lean` and this poller all map the same Mathlib oleans. RSS charges every
+    shared page to each process that maps it, so summing RSS over the tree
+    counts those pages two or three times -- measured at 4310 MB against a true
+    3596 MB on a mid-size replay, a 20% over-count, which is enough to trip an
+    8 GB cap on a run holding about 7.4 GB. PSS divides each shared page by the
+    number of sharers, so the sum is right.
+    """
     try:
+        total = 0
+        try:
+            with open(f"/proc/{pid}/smaps_rollup") as f:
+                for l in f:
+                    if l.startswith("Pss:"):
+                        total += int(l.split()[1]) * 1024
+                        break
+        except OSError:
+            # smaps_rollup needs kernel >= 4.14 and the right privileges.
+            # RSS over-counts shared pages; better that than no reading at all.
+            with open(f"/proc/{pid}/status") as f:
+                for l in f:
+                    if l.startswith("VmRSS:"):
+                        total += int(l.split()[1]) * 1024
+                        break
         with open(f"/proc/{pid}/status") as f:
-            return sum(int(l.split()[1]) * 1024 for l in f
-                       if l.startswith(("VmRSS:", "VmSwap:")))
+            for l in f:
+                if l.startswith("VmSwap:"):
+                    total += int(l.split()[1]) * 1024
+                    break
+        return total
     except (OSError, ValueError, IndexError):
         return 0  # exited between listing the tree and reading it
 
