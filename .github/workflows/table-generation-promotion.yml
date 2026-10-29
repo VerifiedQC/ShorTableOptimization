@@ -70,6 +70,14 @@ jobs:
           # `workflow_run` and `workflow_dispatch`, so a pull request editing
           # that workflow or `table_generation_report.js` ran nothing at all.
           node scripts/test_report_trust.js
+          # The policy generators interpolate a submitted `name` into a Lean
+          # comment, and the banded harness and its memory cap were written
+          # against macOS only. Neither is reachable from CI today -- the
+          # default target has no globs, so none of `RecursiveCost` is in the
+          # build closure -- but both are a few seconds to check, and the
+          # failure mode of each was a plausible answer rather than an error.
+          python3 scripts/test_lean_comment_escaping.py
+          python3 scripts/test_harness_portability.py
 
       - name: Install Lean
         working-directory: source
