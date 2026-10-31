@@ -42,7 +42,22 @@ GOLDEN_PLANS = {
 
 DENSE_SPARSE_WIDTHS = [str(w) for w in range(0, 33)] + ["63", "64", "65", "127", "128"]
 REFERENCE_WIDTHS = [str(w) for w in range(0, 65)]
-WIDTH_SCAN_WIDTHS = ["0", "1", "2", "8", "16", "63", "64", "65", "128", "1024", "2048"]
+# Boundary cases, then every width the five published plans in
+# RECURSIVE_COST_MODEL.md actually recurse through. The planner evaluates
+# `nextBalancedSignedWidth`; the width theorems are about `nextSignedWidth`.
+# Nothing in the type system ties the two together, so this list is the only
+# thing holding them in step -- and before the plan widths were added it
+# covered just 1024 and 2048 of the 24 widths those plans visit, missing every
+# interior one. Regenerate after a table is accepted that moves a plan:
+#   lake env lean --run scripts/tests/RecursiveCostOracle.lean \
+#     --best-known 1024 2048 4096 8192 16384
+WIDTH_SCAN_BOUNDARIES = ["0", "1", "2", "8", "16", "63", "64", "65", "128"]
+WIDTH_SCAN_PLAN_WIDTHS = [
+    "37", "38", "44", "51", "55", "68", "70", "82", "96", "104", "130",
+    "189", "225", "267", "291", "369", "712", "1024", "1225", "1621",
+    "2048", "4096", "8192", "16384",
+]
+WIDTH_SCAN_WIDTHS = WIDTH_SCAN_BOUNDARIES + WIDTH_SCAN_PLAN_WIDTHS
 
 
 def oracle(*args: str, timeout: int = 1800) -> str:
