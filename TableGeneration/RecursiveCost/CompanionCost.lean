@@ -1,13 +1,13 @@
 import TableGeneration.RecursiveCost.CompanionTransport
-import FastMultiplication.ShorVerification.Framework.Gatecount.ResourceModel
-import FastMultiplication.ShorVerification.Implementation.PhaseProduct.Compiler.Widths
-import FastMultiplication.ShorVerification.Implementation.GateCount.Definitions
+import ForShor.ShorVerification.Framework.Gatecount.ResourceModel
+import ForShor.ShorVerification.Implementation.PhaseProduct.Proofs.Compiler.Widths
+import ForShor.ShorVerification.Implementation.PhaseProduct.Proofs.GateCount.Basic
 
 /-!
 # The companion's cost model, at the widths and in the language this planner uses
 
 The companion development is a Lake dependency, so `Shor.cuccaroModAddResources`,
-`Shor.shorGateCostModel`, `Shor.nextSignedWidth` and the rest are used directly.
+`Shor.shorGateCostModelFor`, `Shor.nextSignedWidth` and the rest are used directly.
 This file adds only the two things the companion does not supply, and nothing
 that duplicates something it does.
 
@@ -20,7 +20,7 @@ on a hot path. `canonicalExtReg` is the register of a requested width, and
 width substituted directly, and `negateResources_eq_atWidth` is `rfl`.
 
 **The operation language does not cross.** `Shor.updateWidthState`,
-`Shor.nextSignedWidth` and `Shor.phaseArithmeticOpCost` are stated over
+`Shor.nextSignedWidth` and `Shor.phaseArithmeticOpCostFor` are stated over
 `_root_.Operations.valid_ops`; this repository has its own, because the
 submission path must stay Mathlib-free. The wrappers below apply the companion's
 functions to a transported program, through the single bridge in
@@ -32,6 +32,18 @@ them cannot drift from what the companion charges.
 -/
 
 namespace TableGeneration.RecursiveCost.Companion
+
+/--
+The negation construction this repository prices against.
+
+The companion made the negation method a policy option and moved its default to
+`oneQubit`; `scratch` is what this repository has always priced. The companion's
+`phaseOpSlope` gives the difference: `68 * W` against `20 * W` per negate node,
+buying a qubit saving this repository's `logical_gate_count` objective cannot
+see. Changing this moves every archived plan, so it needs a `modelVersion` bump
+and a regenerated archive.
+-/
+def negationMethod : Shor.NegationMethod := .scratch
 
 /-! ## Width-indexed registers -/
 
@@ -103,11 +115,11 @@ exact-below-bound inequality carries over. -/
 repository's operations. -/
 def phaseArithmeticOpCost {k : Nat} (W : Nat)
     (op : TableGeneration.Operations.valid_ops k) : Nat :=
-  Shor.phaseArithmeticOpCost W (toCompanionOp op)
+  Shor.phaseArithmeticOpCostFor negationMethod W (toCompanionOp op)
 
 /-! ## Gate costs at a bare width -/
 
-/-- `Shor.negateResources` with the register replaced by its width.
+/-- `Shor.negateResourcesPreSwap` with the register replaced by its width.
 
 This is the companion's body with `ExtReg.width r` substituted by `w`;
 `negateResources_eq_atWidth` below is `rfl`. It exists because the planner is
@@ -123,11 +135,12 @@ def negateResourcesAtWidth (w : Nat) : Shor.GateResources :=
     cleanAnc := w + a.cleanAnc }
 
 theorem negateResources_eq_atWidth (r : Shor.ExtReg) :
-    Shor.negateResources r = negateResourcesAtWidth (Shor.ExtReg.width r) := rfl
+    Shor.negateResourcesFor negationMethod r
+      = negateResourcesAtWidth (Shor.ExtReg.width r) := rfl
 
 /-- The operative model's `negate` field is a function of width alone. -/
 theorem shorGateCostModel_negate_atWidth (r : Shor.ExtReg) :
-    (Shor.negateResources r).totalGates
+    (Shor.negateResourcesFor negationMethod r).totalGates
       = (negateResourcesAtWidth (Shor.ExtReg.width r)).totalGates := rfl
 
 /-! ## Closed forms, as consequences
@@ -152,7 +165,8 @@ theorem negateResourcesAtWidth_totalGates (w : Nat) (hw : 3 <= w) :
   omega
 
 theorem negateResources_totalGates (r : Shor.ExtReg) (hw : 3 <= Shor.ExtReg.width r) :
-    (Shor.negateResources r).totalGates = 10 * Shor.ExtReg.width r - 14 := by
+    (Shor.negateResourcesFor negationMethod r).totalGates
+      = 10 * Shor.ExtReg.width r - 14 := by
   show 0 + (Shor.ExtReg.width r + (2 * Shor.ExtReg.width r - 6) + 2)
         + (5 * Shor.ExtReg.width r - 7)
         + (2 * Shor.ExtReg.width r - 3) + 0 = 10 * Shor.ExtReg.width r - 14
@@ -179,10 +193,10 @@ theorem negateResourcesAtWidth_totalGates_le_negateGateBound (w : Nat) :
 /-- Sign extension by `n` bits costs `n` CNOTs, and zero extension is free.
 This is the primitive behind the planner's per-node allocation charge. -/
 @[simp] theorem shorGateResourceModel_signExtend_totalGates (r : Shor.ExtReg) (n : Nat) :
-    (Shor.shorGateResourceModel.signExtend r n).totalGates = n :=
+    ((Shor.shorGateResourceModelFor negationMethod).signExtend r n).totalGates = n :=
   Nat.zero_add n
 
 @[simp] theorem shorGateResourceModel_zeroExtend_totalGates (r : Shor.ExtReg) (n : Nat) :
-    (Shor.shorGateResourceModel.zeroExtend r n).totalGates = 0 := rfl
+    ((Shor.shorGateResourceModelFor negationMethod).zeroExtend r n).totalGates = 0 := rfl
 
 end TableGeneration.RecursiveCost.Companion

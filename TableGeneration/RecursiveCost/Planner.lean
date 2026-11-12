@@ -4,10 +4,11 @@ namespace TableGeneration.RecursiveCost
 
 /-- Version attached to every result produced by the cost model.
 
-There is one model: the companion's operative `Shor.shorGateCostModel`, taken
-from the `Fast_multiplication` dependency at the revision `lake-manifest.json`
-pins. The string is retained because archived plan output carries it, so a
-future companion cost-model change cannot silently reinterpret old estimates. -/
+There is one model: the companion's `Shor.shorGateCostModelFor` at
+`Companion.negationMethod` (see `CompanionCost.lean`), taken from the
+`Fast_multiplication` dependency at the revision `lake-manifest.json` pins. The
+string is retained because archived plan output carries it, so a future
+companion cost-model change cannot silently reinterpret old estimates. -/
 def modelVersion : String := "forshor-phase-product-gates-v3"
 
 /-- Stable machine-readable optimization objective. -/

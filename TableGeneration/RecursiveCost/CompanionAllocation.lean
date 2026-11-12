@@ -1,5 +1,5 @@
 import TableGeneration.RecursiveCost.CompanionCost
-import FastMultiplication.ShorVerification.Implementation.GateCount.PhaseProduct.Lemmas
+import ForShor.ShorVerification.Implementation.PhaseProduct.Proofs.GateCount.Lemmas
 
 /-!
 # What the companion's allocation bookkeeping actually costs

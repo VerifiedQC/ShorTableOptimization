@@ -1,5 +1,5 @@
 import TableGeneration.Language
-import FastMultiplication.ShorVerification.Framework.ToomCookTable
+import ForShor.ShorVerification.Framework.ToomCookTable
 
 /-!
 # Transporting this repository's operation language into the companion's

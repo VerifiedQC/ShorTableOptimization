@@ -1,6 +1,6 @@
 import TableGeneration.ContractSoundness
 import TableGeneration.RecursiveCost.CompanionTransport
-import FastMultiplication.ShorVerification.Implementation.PhaseProduct.Math.Table_Generation.Core.Coverage
+import ForShor.ShorVerification.Implementation.PhaseProduct.Proofs.Math.Table_Generation.Core.Coverage
 
 /-!
 # Closing the contract's soundness gap against the companion

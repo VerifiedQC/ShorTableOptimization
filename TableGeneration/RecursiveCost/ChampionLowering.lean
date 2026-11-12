@@ -1,17 +1,18 @@
 import TableGeneration.RecursiveCost.Catalog
 import TableGeneration.RecursiveCost.CompanionTransport
-import FastMultiplication.ShorVerification.Implementation.Shor.Lowering.LowerGate
-import FastMultiplication.Emit.Lower.Registers
-import FastMultiplication.Emit.Lower.Decide
+import ForShor.ShorVerification.Implementation.Compiler.Proofs.SingleTable
+import ForShor.Emit.Lower.Registers
+import ForShor.Emit.Lower.Decide
 
 /-!
 # Pricing a promoted champion through the companion's recursive lowering
 
 The planner reports a closed form. The companion can instead *compile* a table
 to a `LowGate` tree and count it:
-`Shor.LowGate.gateCount Shor.shorGateCostModel (Shor.lowerGate ...)`. That is the
-expensive oracle, and this file is the route to it for a program this repository
-actually promoted, rather than for the companion's own standard table.
+`Shor.LowGate.gateCount (Shor.shorGateCostModelFor Companion.negationMethod)
+(Shor.lowerGate ...)`. That is the expensive oracle, and this file is the route
+to it for a program this repository actually promoted, rather than for the
+companion's own standard table.
 
 Running the two side by side is the differential in
 `scripts/tests/ChampionGateCountDifferential.lean`. Nothing here is imported by
@@ -114,7 +115,7 @@ def loweredPhaseProductGateCount (k : Nat) (hk : k >= 2)
     | .error message => .error message
     | .ok (x, z, _ctrl) =>
         if hworkspace : Shor.SignedRecursiveWorkspaceOK companionOps x z then
-          .ok (Shor.LowGate.gateCount Shor.shorGateCostModel
+          .ok (Shor.LowGate.gateCount (Shor.shorGateCostModelFor Companion.negationMethod)
             (Shor.lowerGate k hk companionOps companionPts hpts
               (Shor.Gate.SignedPhaseProd phi x z) hworkspace))
         else

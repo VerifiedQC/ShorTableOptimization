@@ -38,11 +38,14 @@ from pathlib import Path
 # The only subtree allowed to import Mathlib.
 ALLOWED_PREFIX = Path("TableGeneration/RecursiveCost")
 
-# Batteries arrives with Mathlib and carries the same risk. FastMultiplication
-# is the companion Lake dependency; it imports Mathlib itself, so an import of
-# it outside the allowed prefix would pull Mathlib into the submission path just
-# as directly, and would break the `propext`-only axiom audit.
-IMPORT_RE = re.compile(r"^\s*import\s+(Mathlib|Batteries|FastMultiplication)\b", re.M)
+# Batteries arrives with Mathlib and carries the same risk. The companion Lake
+# dependency imports Mathlib itself, so an import of it outside the allowed
+# prefix would pull Mathlib into the submission path just as directly, and would
+# break the `propext`-only axiom audit.
+#
+# The companion's library was renamed `FastMultiplication` -> `ForShor`; both
+# names are matched so a stale import cannot slip past the gate.
+IMPORT_RE = re.compile(r"^\s*import\s+(Mathlib|Batteries|FastMultiplication|ForShor)\b", re.M)
 
 # A direct Mathlib import is not the only way to pull Mathlib onto the submission
 # path: importing `TableGeneration.RecursiveCost.*` (the only subtree that is
