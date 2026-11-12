@@ -15,8 +15,9 @@ operation language into the companion's; this file adds only what the companion
 does not have at all: an evaluation-oriented array scan, and the per-node
 analysis the recursive planner consumes.
 
-There is one cost model, the companion's operative `Shor.shorGateCostModel`. An
-earlier revision of this file also carried a `v2` model and a `4kW` variant;
+There is one cost model, the companion's `Shor.shorGateCostModelFor` at
+`Companion.negationMethod`. An earlier revision of this file also carried a `v2`
+model and a `4kW` variant;
 `v2` mirrored the companion's `phaseProductCostModel`, which was **deleted**
 upstream, and `4kW` was never a companion definition at all -- only an inline
 bound inside its asymptotic proofs. Both are gone.
@@ -30,8 +31,11 @@ through `CompanionCost.lean`.
 -/
 
 /-- Lower-limb width for the top-heavy split, at bare widths. -/
+-- `Shor.phaseLimbWidthOfWidth` is gone; the companion's `phaseLimbWidth` is now
+-- the `min` of the two divisions directly. `phaseLimbWidth_eq_forshor` ties this
+-- to it.
 def phaseLimbWidth (xWidth zWidth k : Nat) : Nat :=
-  min (Shor.phaseLimbWidthOfWidth xWidth k) (Shor.phaseLimbWidthOfWidth zWidth k)
+  min (xWidth / k) (zWidth / k)
 
 @[simp] theorem phaseLimbWidth_eq_forshor (xWidth zWidth k : Nat) :
     phaseLimbWidth xWidth zWidth k
@@ -132,7 +136,7 @@ theorem cuccaroNegateGateCount_eq (width : Nat) (hw : 3 <= width) :
 /-- The planner's negation cost is what the operative model charges any register
 of that width. -/
 theorem cuccaroNegateGateCount_eq_model (r : Shor.ExtReg) :
-    (Shor.negateResources r).totalGates
+    (Shor.negateResourcesFor Companion.negationMethod r).totalGates
       = cuccaroNegateGateCount (Shor.ExtReg.width r) := rfl
 
 /-- The planner's adder cost is what the operative model charges `addScaled` at

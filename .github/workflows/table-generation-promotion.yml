@@ -154,6 +154,15 @@ jobs:
           lake build TableGeneration.Submission.Correctness
           python3 scripts/verifier.py --axioms-only --out-dir ../artifacts
 
+      # `scripts.promote` runs `submission_syntax_gate.lean` over the archive, and
+      # the gate's trusted header imports `TableGeneration.Metrics`, which is not
+      # in `Submission.Correctness`'s closure. With a warm cache its olean was
+      # there anyway; on a cold one it is not, and the gate used to report the
+      # archive as unparseable rather than the build as incomplete.
+      - name: Build the modules the syntax gate's trusted header imports
+        working-directory: source
+        run: lake build TableGeneration.Metrics
+
       - name: Construct and verify best-known generator
         working-directory: source
         run: python3 -m scripts.promote --results-root ../published-results

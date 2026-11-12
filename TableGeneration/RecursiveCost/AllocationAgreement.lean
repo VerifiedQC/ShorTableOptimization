@@ -100,7 +100,7 @@ With it, the planner's per-node bookkeeping charge is no longer a reading of
 theorem canonicalAllocationCost_eq (w m childWidth : Nat) :
     canonicalAllocationCost w (m + 1) childWidth
       = signExtensionAllocationGateCount w w (m + 1) childWidth := by
-  have hfit : childWidth - (w - m * Shor.phaseLimbWidthOfWidth w (m + 1)) ≤ childWidth :=
+  have hfit : childWidth - (w - m * (w / (m + 1))) ≤ childWidth :=
     Nat.sub_le _ _
   simp only [canonicalAllocationCost, canonicalLayoutState,
     bookkeepingGateCost_compileSignedAllocations,
