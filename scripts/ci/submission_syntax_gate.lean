@@ -156,7 +156,16 @@ unsafe def trustedEnv : IO Environment := do
   let header := "import TableGeneration.Policy\nimport TableGeneration.Baseline\nimport TableGeneration.Metrics\nimport TableGeneration.Spec\n"
   let ictx := mkInputContext header "<gate-trusted-header>"
   let (hdr, _, msgs) ← parseHeader ictx
-  let (env, _) ← Elab.processHeader hdr {} msgs ictx
+  let (env, log) ← Elab.processHeader hdr {} msgs ictx
+  -- A missing olean here does not throw: `processHeader` logs and hands back an
+  -- environment without the notation, and every file then fails to parse as if
+  -- the SUBMISSION were malformed. Refuse instead, so a build gap reads as one.
+  if log.hasErrors then
+    for m in log.toList do
+      IO.eprintln (← m.toString)
+    throw <| IO.userError
+      "submission syntax gate: trusted header failed to import; \
+       build the modules it names before running the gate"
   return env
 
 unsafe def checkFile (env : Environment) (path : String) : IO (Array String) := do
