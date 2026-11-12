@@ -62,13 +62,14 @@ The table-operation languages are compatible. Both repositories use `shiftL`,
 
 The gate costs are not reproduced here and not copied either. `Reg`, `ExtReg`,
 `LowGate`, `LowGateCostModel`, `GateResources`, the Cuccaro resource records and
-`shorGateCostModel` itself are the companion's own definitions, imported from the
-`Fast_multiplication` dependency. The planner's constants are computed from those
-records, so the familiar `9w - 16` and `10w - 14` are theorems
+`shorGateCostModelFor` itself are the companion's own definitions, imported from
+the `Fast_multiplication` dependency. The planner's constants are computed from
+those records, so the familiar `9w - 16` and `10w - 14` are theorems
 (`cuccaroModAddGateCount_eq`, `cuccaroNegateGateCount_eq`) rather than numbers
 transcribed from the companion, and `cuccaroNegateGateCount_eq_model` ties the
-planner's constant to what `shorGateCostModel.negate` charges, by `rfl` and with
-no axioms.
+planner's constant to what the model's `negate` charges, by `rfl` and with no
+axioms. The companion has two negation methods; `Companion.negationMethod` picks
+the one these constants are stated for.
 
 ### What this repository adds on top
 
